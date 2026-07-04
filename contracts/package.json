@@ -1,0 +1,25 @@
+{
+  "name": "vasmo-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "hardhat compile",
+    "clean": "hardhat clean",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy.js --network hardhat",
+    "deploy:factory": "hardhat run scripts/deploy-factory.js --network hardhat",
+    "deploy:mock-aave": "hardhat run scripts/deploy-mock-aave.js --network hardhat",
+    "deploy:mantle-sepolia": "node scripts/select-mantle-rpc.js && hardhat run scripts/deploy-multichain.js --network mantleSepolia",
+    "verify:mantle-sepolia": "node scripts/verify-mantle-sepolia.js",
+    "deploy:multichain": "hardhat run scripts/deploy-multichain.js --network hardhat"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.6",
+    "@openzeppelin/contracts": "^5.2.0",
+    "@pythnetwork/pyth-sdk-solidity": "^4.0.0",
+    "chai": "^4.5.0",
+    "ethers": "^6.13.4",
+    "hardhat": "^2.22.19"
+  }
+}

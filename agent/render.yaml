@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: vasmo-agent
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: pnpm install && pnpm build
+    startCommand: pnpm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WS_PORT
+        value: 8080
+      - key: MANTLE_RPC_URL
+        value: https://rpc.sepolia.mantle.xyz
+      - key: INVOICE_NFT_ADDRESS
+        value: 0x018ee8F363421016177DbC8F9492fe2a1C720e29
+      - key: YIELD_VAULT_ADDRESS
+        value: 0x7f51D3B234E4c20959A1f6e91D3B852EE16c65A6
+      - key: AGENT_ROUTER_ADDRESS
+        value: 0x4430248F3b2304F946f08c43A06C3451657FD658
+      - key: PYTH_ORACLE_ADDRESS
+        value: 0x7CfdF0580C87d0c379c4a5cDbC46A036E8AF71E3
+      - key: AGENT_PRIVATE_KEY
+        sync: false  # Will be set via Render dashboard (sensitive)
+      - key: ANTHROPIC_API_KEY
+        sync: false  # Will be set via Render dashboard (sensitive)

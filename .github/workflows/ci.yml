@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  agent:
+    name: Agent (TypeScript + Docker Deploy)
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME_PROD }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN_PROD }}
+      HOST: ${{ secrets.SSH_HOST_TEMP }}
+      HOST_USERNAME: ${{ secrets.SSH_USERNAME_TEMP }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_TEMP }}
+      AGENT_IMAGE: ${{ secrets.DOCKER_USERNAME_PROD }}/vasmo-agent:latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Type check
+        run: cd agent && pnpm tsc --noEmit
+
+      - name: Run tests
+        run: cd agent && pnpm test
+
+      - name: Build agent
+        run: cd agent && pnpm build
+
+      - name: Login to Docker Hub
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
+
+      - name: Build and push agent image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.mcp
+          push: true
+          tags: ${{ env.AGENT_IMAGE }}
+
+      - name: Deploy to Ubuntu server
+        if: github.event_name == 'push'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.HOST }}
+          username: ${{ env.HOST_USERNAME }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            echo "Deployment started at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+            APP_DIR=/home/ubuntu/vasmo
+            AGENT_ENV=$APP_DIR/.env.agent
+
+            if [ ! -f "$AGENT_ENV" ]; then
+              echo "Missing agent env file: $AGENT_ENV"
+              exit 1
+            fi
+
+            echo "Creating Docker network if missing..."
+            sudo docker network create vasmo-net >/dev/null 2>&1 || true
+
+            echo "Stopping old containers..."
+            sudo docker stop vasmo-agent || true
+            sudo docker rm vasmo-agent || true
+
+            echo "Pulling latest image..."
+            sudo docker pull ${{ env.AGENT_IMAGE }}
+
+            echo "Starting agent..."
+            sudo docker run -d \
+              --name vasmo-agent \
+              --restart unless-stopped \
+              --network vasmo-net \
+              -p 8080:8080 \
+              --env-file "$AGENT_ENV" \
+              ${{ env.AGENT_IMAGE }}
+
+            echo "Verifying deployment..."
+            for i in $(seq 1 24); do
+              if curl -fsS http://127.0.0.1:8080/health >/dev/null 2>&1; then
+                break
+              fi
+              if [ "$i" -eq 24 ]; then
+                echo "Agent did not become healthy in time"
+                sudo docker logs --tail 120 vasmo-agent || true
+                exit 1
+              fi
+              sleep 5
+            done
+
+            if ! sudo docker ps --format '{{.Names}}' | grep -q '^vasmo-agent$'; then
+              echo "Agent container failed to start"
+              sudo docker logs --tail 120 vasmo-agent || true
+              exit 1
+            fi
+
+            echo "Agent container is running"
+            echo "Agent logs:"
+            sudo docker logs --tail 30 vasmo-agent
+            echo "Deployment completed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+      - name: Post-deploy verification
+        if: github.event_name == 'push' && success()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.HOST }}
+          username: ${{ env.HOST_USERNAME }}
+          key: ${{ env.SSH_PRIVATE_KEY }}
+          script: |
+            if sudo docker ps --format '{{.Names}}' | grep -q '^vasmo-agent$'; then
+              echo "Agent container status:"
+              sudo docker inspect vasmo-agent --format='Status: {{.State.Status}} | Started At: {{.State.StartedAt}}'
+              sudo docker port vasmo-agent
+            else
+              echo "vasmo-agent is not running"
+              exit 1
+            fi
