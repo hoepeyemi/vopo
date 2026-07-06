@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
+import type { AgentLogEntry } from '@/hooks/use-agent-websocket'
 
 interface LogEntry {
   id: number
   time: string
   message: string
-  type: 'info' | 'success' | 'warning' | 'action'
+  type: 'info' | 'success' | 'warning' | 'action' | 'memory'
 }
 
 const AGENT_MESSAGES = [
@@ -32,19 +33,35 @@ interface LiveAgentLogProps {
   maxEntries?: number
   className?: string
   compact?: boolean
+  liveEntries?: AgentLogEntry[]
 }
 
 export function LiveAgentLog({
   maxEntries = 6,
   className,
-  compact = false
+  compact = false,
+  liveEntries,
 }: LiveAgentLogProps) {
   const [entries, setEntries] = useState<LogEntry[]>([])
   const [messageIndex, setMessageIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  const isLive = liveEntries !== undefined
 
-  // Generate initial entries
+  // When real WS entries are provided, use them directly
   useEffect(() => {
+    if (!isLive) return
+    const mapped: LogEntry[] = liveEntries.slice(-maxEntries).map(e => ({
+      id: e.id,
+      time: e.time,
+      message: e.message,
+      type: e.entryType,
+    }))
+    setEntries(mapped)
+  }, [liveEntries, maxEntries, isLive])
+
+  // Generate initial simulated entries (only when no live feed)
+  useEffect(() => {
+    if (isLive) return
     const now = new Date()
     const initialEntries: LogEntry[] = []
 
@@ -61,10 +78,11 @@ export function LiveAgentLog({
 
     setEntries(initialEntries)
     setMessageIndex(3)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Add new entries periodically
+  // Simulated ticker (only when no live feed)
   useEffect(() => {
+    if (isLive) return
     const interval = setInterval(() => {
       const msg = AGENT_MESSAGES[messageIndex % AGENT_MESSAGES.length]
 
@@ -77,15 +95,14 @@ export function LiveAgentLog({
         }
 
         const updated = [...prev, newEntry]
-        // Keep only the last maxEntries
         return updated.slice(-maxEntries)
       })
 
       setMessageIndex(prev => prev + 1)
-    }, 3500 + Math.random() * 2000) // 3.5-5.5 seconds
+    }, 3500 + Math.random() * 2000)
 
     return () => clearInterval(interval)
-  }, [messageIndex, maxEntries])
+  }, [messageIndex, maxEntries, isLive])
 
   return (
     <div
@@ -113,6 +130,7 @@ export function LiveAgentLog({
             entry.type === 'success' && 'text-[#10b981]',
             entry.type === 'warning' && 'text-[#f59e0b]',
             entry.type === 'action' && 'text-[#8b5cf6]',
+            entry.type === 'memory' && 'text-[#60a5fa]',
             entry.type === 'info' && 'text-[#e5e5e5]'
           )}>
             {entry.message}

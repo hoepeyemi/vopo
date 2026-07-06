@@ -47,12 +47,12 @@ const emptyAddresses: ContractAddresses = {
 const addresses: Partial<Record<ChainId, ContractAddresses>> = {
   // Testnets - will be populated after deployment
   [CHAIN_IDS.MANTLE_SEPOLIA]: {
-    invoiceNFT: "0x018ee8F363421016177DbC8F9492fe2a1C720e29",
-    yieldVault: "0x7f51D3B234E4c20959A1f6e91D3B852EE16c65A6",
-    agentRouter: "0x4430248F3b2304F946f08c43A06C3451657FD658",
-    privacyRegistry: "0x2DA4B52913A928263a405dE3b42a5768a4dCa3b0",
-    pythOracle: "0x7CfdF0580C87d0c379c4a5cDbC46A036E8AF71E3",
-    aaveYieldSource: "0x5a179d261fD322ecaED06FA9Aa2973980D74322c",
+    invoiceNFT: "0x76799a06A64f0b1C24Dd688348c6c2D2B215b173",
+    yieldVault: "0xEfcae7a8c221956D1B3aff5bCDB0267e4aD6646A",
+    agentRouter: "0x38cf9B34d8Ca1d041FfB876Bf73f8DE2Cb119E01",
+    privacyRegistry: "0x1941dF807C71A5261468de9dBDA9ceF626e635d3",
+    pythOracle: "0xD793Bb98C1B0b94E5392370d031ED76DeDeAcDd1",
+    aaveYieldSource: "0x413FbA572293494972636975BEe37477dB405652",
   },
   [CHAIN_IDS.ARBITRUM_SEPOLIA]: { ...emptyAddresses },
   [CHAIN_IDS.POLYGON_AMOY]: { ...emptyAddresses },

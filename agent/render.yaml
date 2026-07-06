@@ -14,14 +14,14 @@ services:
       - key: MANTLE_RPC_URL
         value: https://rpc.sepolia.mantle.xyz
       - key: INVOICE_NFT_ADDRESS
-        value: 0x018ee8F363421016177DbC8F9492fe2a1C720e29
+        value: 0x76799a06A64f0b1C24Dd688348c6c2D2B215b173
       - key: YIELD_VAULT_ADDRESS
-        value: 0x7f51D3B234E4c20959A1f6e91D3B852EE16c65A6
+        value: 0xEfcae7a8c221956D1B3aff5bCDB0267e4aD6646A
       - key: AGENT_ROUTER_ADDRESS
-        value: 0x4430248F3b2304F946f08c43A06C3451657FD658
+        value: 0x38cf9B34d8Ca1d041FfB876Bf73f8DE2Cb119E01
       - key: PYTH_ORACLE_ADDRESS
-        value: 0x7CfdF0580C87d0c379c4a5cDbC46A036E8AF71E3
+        value: 0xD793Bb98C1B0b94E5392370d031ED76DeDeAcDd1
       - key: AGENT_PRIVATE_KEY
         sync: false  # Will be set via Render dashboard (sensitive)
-      - key: ANTHROPIC_API_KEY
+      - key: QWEN_API_KEY
         sync: false  # Will be set via Render dashboard (sensitive)

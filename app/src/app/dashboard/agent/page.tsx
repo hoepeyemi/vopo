@@ -1,23 +1,21 @@
 "use client"
 
-/**
- * vasmo Agent Page - Terminal/Bloomberg Aesthetic
- * ALIVE: Live agent log, pulse animations, grid background
- */
-
 import { useState } from "react"
 import { useAccount } from "wagmi"
 import { Switch } from "@/components/ui/switch"
 import { StatusBar } from "@/components/ui/status-bar"
 import { TerminalNav } from "@/components/terminal-nav"
 import { LiveAgentLog } from "@/components/live-agent-log"
+import { MemoryEventFeed } from "@/components/memory-event-feed"
 import { useYieldVault } from "@/hooks/use-yield-vault"
+import { useAgentWebSocket } from "@/hooks/use-agent-websocket"
 import { formatUnits } from "viem"
 
 export default function AgentPage() {
   const [autoExecute, setAutoExecute] = useState(true)
   const { address, isConnected } = useAccount()
   const { activeDepositsCount, totalYield } = useYieldVault()
+  const { status: wsStatus, memoryEvents, logEntries } = useAgentWebSocket()
 
   const yieldFormatted = Number(formatUnits(BigInt(totalYield || 0), 18))
 
@@ -92,18 +90,65 @@ export default function AgentPage() {
         </div>
 
         {/* Live Agent Log */}
-        <div className="terminal-card mb-8">
+        <div className="terminal-card mb-6">
           <div className="px-4 py-3 border-b border-[#1f1f1f] bg-[#111111]">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold">Agent Activity</span>
               <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] status-pulse" />
-                <span className="text-[10px] text-[#10b981]">LIVE</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${wsStatus === 'connected' ? 'bg-[#10b981] status-pulse' : 'bg-[#444444]'}`} />
+                <span className={`text-[10px] ${wsStatus === 'connected' ? 'text-[#10b981]' : 'text-[#666666]'}`}>
+                  {wsStatus === 'connected' ? 'LIVE' : wsStatus === 'connecting' ? 'CONNECTING' : 'SIMULATED'}
+                </span>
               </div>
             </div>
           </div>
           <div className="p-4 text-[12px]">
-            <LiveAgentLog maxEntries={8} />
+            <LiveAgentLog
+              maxEntries={8}
+              liveEntries={wsStatus === 'connected' ? logEntries : undefined}
+            />
+          </div>
+        </div>
+
+        {/* Memory Event Feed */}
+        <div className="terminal-card mb-8">
+          <div className="px-4 py-3 border-b border-[#1f1f1f] bg-[#111111]">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold">Memory System</span>
+                <span className="ml-2 text-[10px] text-[#666666]">L1 working · L2 episodic · L3 semantic</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] text-[#666666]">
+                  {memoryEvents.length} event{memoryEvents.length !== 1 ? 's' : ''}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#8b5cf6] status-pulse" />
+                  <span className="text-[10px] text-[#8b5cf6]">MEMORIVAULT</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="px-4 py-3 border-b border-[#1f1f1f] grid grid-cols-4 gap-2 text-[10px]">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[#10b981] font-mono font-bold">STORE</span>
+              <span className="text-[#444444]">new episode</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[#60a5fa] font-mono font-bold">RECALL</span>
+              <span className="text-[#444444]">used in RAG</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[#f59e0b] font-mono font-bold">PRUNE</span>
+              <span className="text-[#444444]">decayed below threshold</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[#8b5cf6] font-mono font-bold">DISTILL</span>
+              <span className="text-[#444444]">condensed to L3 rule</span>
+            </div>
+          </div>
+          <div className="p-4">
+            <MemoryEventFeed events={memoryEvents} maxEntries={12} />
           </div>
         </div>
 
