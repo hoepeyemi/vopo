@@ -7,12 +7,14 @@ import { StatusBar } from "@/components/ui/status-bar"
 import { TerminalNav } from "@/components/terminal-nav"
 import { LiveAgentLog } from "@/components/live-agent-log"
 import { MemoryEventFeed } from "@/components/memory-event-feed"
+import { MemoryTopologyGraph } from "@/components/memory-topology-graph"
 import { useYieldVault } from "@/hooks/use-yield-vault"
 import { useAgentWebSocket } from "@/hooks/use-agent-websocket"
 import { formatUnits } from "viem"
 
 export default function AgentPage() {
   const [autoExecute, setAutoExecute] = useState(true)
+  const [memoryView, setMemoryView] = useState<'feed' | 'graph'>('graph')
   const { address, isConnected } = useAccount()
   const { activeDepositsCount, totalYield } = useYieldVault()
   const { status: wsStatus, memoryEvents, logEntries } = useAgentWebSocket()
@@ -110,15 +112,31 @@ export default function AgentPage() {
           </div>
         </div>
 
-        {/* Memory Event Feed */}
+        {/* Memory System — graph + event feed */}
         <div className="terminal-card mb-8">
+          {/* Header */}
           <div className="px-4 py-3 border-b border-[#1f1f1f] bg-[#111111]">
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex items-center gap-3">
                 <span className="text-xs font-semibold">Memory System</span>
-                <span className="ml-2 text-[10px] text-[#666666]">L1 working · L2 episodic · L3 semantic</span>
+                <span className="text-[10px] text-[#666666]">L1 · L2 · L3</span>
               </div>
               <div className="flex items-center gap-3">
+                {/* View toggle */}
+                <div className="flex items-center bg-[#0a0a0a] border border-[#1f1f1f] rounded overflow-hidden text-[10px] font-mono">
+                  <button
+                    onClick={() => setMemoryView('graph')}
+                    className={`px-3 py-1 transition-colors ${memoryView === 'graph' ? 'bg-[#8b5cf6] text-white' : 'text-[#666666] hover:text-[#e5e5e5]'}`}
+                  >
+                    GRAPH
+                  </button>
+                  <button
+                    onClick={() => setMemoryView('feed')}
+                    className={`px-3 py-1 transition-colors ${memoryView === 'feed' ? 'bg-[#8b5cf6] text-white' : 'text-[#666666] hover:text-[#e5e5e5]'}`}
+                  >
+                    FEED
+                  </button>
+                </div>
                 <span className="text-[10px] text-[#666666]">
                   {memoryEvents.length} event{memoryEvents.length !== 1 ? 's' : ''}
                 </span>
@@ -129,26 +147,34 @@ export default function AgentPage() {
               </div>
             </div>
           </div>
-          <div className="px-4 py-3 border-b border-[#1f1f1f] grid grid-cols-4 gap-2 text-[10px]">
+
+          {/* Legend bar — shared between both views */}
+          <div className="px-4 py-2 border-b border-[#1f1f1f] flex items-center gap-6 text-[10px] flex-wrap">
             <div className="flex items-center gap-1.5">
               <span className="text-[#10b981] font-mono font-bold">STORE</span>
               <span className="text-[#444444]">new episode</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-[#60a5fa] font-mono font-bold">RECALL</span>
-              <span className="text-[#444444]">used in RAG</span>
+              <span className="text-[#444444]">RAG hit</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-[#f59e0b] font-mono font-bold">PRUNE</span>
-              <span className="text-[#444444]">decayed below threshold</span>
+              <span className="text-[#444444]">decayed</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-[#8b5cf6] font-mono font-bold">DISTILL</span>
-              <span className="text-[#444444]">condensed to L3 rule</span>
+              <span className="text-[#444444]">→ L3 rule</span>
             </div>
           </div>
+
+          {/* Body */}
           <div className="p-4">
-            <MemoryEventFeed events={memoryEvents} maxEntries={12} />
+            {memoryView === 'graph' ? (
+              <MemoryTopologyGraph events={memoryEvents} />
+            ) : (
+              <MemoryEventFeed events={memoryEvents} maxEntries={16} />
+            )}
           </div>
         </div>
 

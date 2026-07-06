@@ -78,6 +78,7 @@ export class MemorySystem {
       memoryId: memory.id,
       summary: params.content.slice(0, 100),
       timestamp: Date.now(),
+      domain: params.tags[0],
     });
     return memory;
   }

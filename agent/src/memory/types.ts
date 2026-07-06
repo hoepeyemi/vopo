@@ -58,6 +58,10 @@ export interface MemoryEvent {
   summary: string;
   timestamp: number;
   reason?: string;
+  /** Domain tag for graph placement */
+  domain?: string;
+  /** L2 IDs consumed by this condensation */
+  sourceIds?: string[];
 }
 
 export interface LogEpisodeParams {

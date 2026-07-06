@@ -9,6 +9,8 @@ export interface MemoryEvent {
   summary: string
   timestamp: number
   reason?: string
+  domain?: string
+  sourceIds?: string[]
 }
 
 export interface AgentLogEntry {

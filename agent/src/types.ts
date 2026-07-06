@@ -82,6 +82,10 @@ export interface MemoryEventMessage {
   summary: string;
   timestamp: number;
   reason?: string;
+  /** Domain tag — present on created/condensed events for graph placement */
+  domain?: string;
+  /** Source L2 IDs consumed during condensation — present on condensed events */
+  sourceIds?: string[];
 }
 
 export interface WebSocketMessage {

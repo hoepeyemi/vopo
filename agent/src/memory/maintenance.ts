@@ -109,6 +109,8 @@ export class MemoryMaintenance {
       summary: `Condensed ${candidates.length} ${tag} episodes → rule: "${rule.slice(0, 80)}..."`,
       timestamp: Date.now(),
       reason: `${candidates.length} memories condensed from domain ${domain}`,
+      domain,
+      sourceIds: candidates.map((e) => e.id),
     });
 
     console.log(`🧬 Condensed ${candidates.length} L2 [${tag}] → L3 rule: "${rule.slice(0, 60)}..."`);
