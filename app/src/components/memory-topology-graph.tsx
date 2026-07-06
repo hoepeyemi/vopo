@@ -174,10 +174,13 @@ export function MemoryTopologyGraph({ events, className }: MemoryTopologyGraphPr
     })
   }, [events])
 
-  // Clear highlight after 2s
+  // Clear highlight after 2s.
+  // Always reset the timer for any id in the highlighted set so that a memory
+  // recalled multiple times within the window gets a fresh 2-second flash each time.
   useEffect(() => {
     for (const id of graph.highlighted) {
-      if (highlightTimers.current.has(id)) continue
+      const existing = highlightTimers.current.get(id)
+      if (existing !== undefined) clearTimeout(existing)
       const t = setTimeout(() => {
         setGraph(g => {
           const h = new Set(g.highlighted)

@@ -179,4 +179,9 @@ export class L3SemanticMemory {
   count(): number {
     return this.rules.length;
   }
+
+  /** Await any in-flight async write so the caller knows the file is up-to-date. */
+  flush(): Promise<void> {
+    return this.writeQueue;
+  }
 }

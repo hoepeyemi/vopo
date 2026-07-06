@@ -236,15 +236,23 @@ async function main() {
   // Health check is now built into WebSocket server (same port)
   console.log(`  🏥 Health: http://localhost:${WS_PORT}/health`);
 
-  // Handle graceful shutdown
-  const shutdown = () => {
-    console.log('\n🛑 Shutting down MemoriVault Agent...');
-    agent.stop();
+  // Handle graceful shutdown — await memory flush so no writes are lost.
+  // A 5-second hard timeout ensures the process always exits even if a write
+  // hangs (e.g. NFS mount unresponsive).
+  const shutdown = async (signal: string) => {
+    console.log(`\n🛑 ${signal} received — flushing memory and shutting down...`);
+    const hardExit = setTimeout(() => {
+      console.error('⚠️  Graceful shutdown timed out after 5 s — forcing exit');
+      process.exit(1);
+    }, 5000);
+    hardExit.unref(); // don't let the timer itself keep the process alive
+    await agent.stop();
+    clearTimeout(hardExit);
     process.exit(0);
   };
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  process.on('SIGINT',  () => { shutdown('SIGINT').catch(console.error); });
+  process.on('SIGTERM', () => { shutdown('SIGTERM').catch(console.error); });
 
   // Keep process alive
   console.log('\n✅ MemoriVault Agent is live. Press Ctrl+C to stop.\n');

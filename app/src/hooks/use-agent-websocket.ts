@@ -103,7 +103,10 @@ export function useAgentWebSocket() {
     }
 
     ws.onclose = () => {
-      setStatus('disconnected')
+      // Preserve 'error' status if onclose was triggered by onerror — React
+      // batches setState calls so the last write wins; using a flag ensures the
+      // error state is visible to the UI rather than being overwritten here.
+      setStatus(s => s === 'error' ? 'error' : 'disconnected')
       wsRef.current = null
       reconnectTimer.current = setTimeout(connect, 5000)
     }

@@ -438,6 +438,11 @@ export function applyMarketAdjustment(
         `Market volatility (${marketConditions.volatilityLevel}) suggests reducing risk exposure.`;
     } else if (analysis.recommendedStrategy === Strategy.Aggressive) {
       adjusted.recommendedStrategy = Strategy.Conservative;
+      // Recalculate shouldAct: the original analysis may have had insufficient
+      // confidence for Aggressive (shouldAct=false), but after the cap the
+      // Conservative recommendation is a distinct action that should be evaluated
+      // on its own merits — act if current strategy differs from Conservative.
+      adjusted.shouldAct = analysis.currentStrategy !== Strategy.Conservative;
       adjusted.reasoning = `MARKET CAUTION: Blocking upgrade to Aggressive due to market stress. ` +
         `${marketAlert.message}. Recommending Conservative instead.`;
     }
@@ -559,6 +564,20 @@ function detectRegime(): MarketRegime {
  */
 export function getCurrentRegime(): MarketRegime {
   return currentRegime;
+}
+
+/**
+ * Reset all module-level optimizer state.
+ * Must be called on agent start so stale history from a previous run in the
+ * same process (hot-reload, test harness, multi-instance) does not corrupt
+ * regime detection or decision scoring for the new run.
+ */
+export function resetOptimizerState(): void {
+  decisionHistory.length = 0;
+  patternInsights.clear();
+  marketHistory.length = 0;
+  currentRegime = 'unknown';
+  lastRegimeUpdate = 0;
 }
 
 /**

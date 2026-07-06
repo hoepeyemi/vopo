@@ -9,6 +9,7 @@ import {
   updateMarketRegime,
   applyRegimeAdjustment,
   getCurrentRegime,
+  resetOptimizerState,
 } from './optimizer.js';
 import {
   AgentConfig,
@@ -95,6 +96,10 @@ export class VasmoAgent {
       console.warn('⚠️  No private key — read-only mode');
     }
 
+    // Clear any stale module-level state from a previous run in this process
+    // (hot-reload, test harness, or multiple VasmoAgent instances).
+    resetOptimizerState();
+
     // Start memory maintenance (decay, prune, condense) in the background
     this.memory.startMaintenance(this.llm);
 
@@ -115,7 +120,7 @@ export class VasmoAgent {
     console.log('🤖 MemoriVault Agent started');
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     if (!this.isRunning) return;
     if (this.analysisLoop) {
       clearInterval(this.analysisLoop);
@@ -124,6 +129,9 @@ export class VasmoAgent {
     this.memory.stopMaintenance();
     this.ws.stop();
     this.isRunning = false;
+    // Drain in-flight L2/L3 async writes before the process exits so no
+    // memory state is lost on graceful shutdown (SIGTERM / SIGINT).
+    await this.memory.flush();
     console.log('🤖 MemoriVault Agent stopped');
   }
 

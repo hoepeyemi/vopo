@@ -314,19 +314,21 @@ export class BlockchainService {
     }
 
     try {
-      const result = await withRetry(
-        async () => {
-          const tx = await this.agentRouter.recordDecision(tokenId, strategy, confidence, reasoning);
-          const receipt = await tx.wait();
-          if (receipt.status !== 1) {
-            throw new Error(`Transaction reverted (status=0): ${receipt.hash}`);
-          }
-          return { success: true, txHash: receipt.hash };
-        },
-        `recordDecision(${tokenId})`,
+      // Only retry the transaction submission, never tx.wait().
+      // If we wrapped send+wait together, a timeout between mempool submission
+      // and receipt confirmation would re-submit a second transaction — the
+      // contract is not idempotent so this would create a duplicate record.
+      const tx = await withRetry(
+        () => this.agentRouter.recordDecision(tokenId, strategy, confidence, reasoning),
+        `recordDecision-send(${tokenId})`,
         { maxAttempts: 3, baseDelayMs: 2000, maxDelayMs: 15000 }
       );
-      return result;
+      // Once we hold a tx object we have a hash — just wait for confirmation.
+      const receipt = await tx.wait();
+      if (receipt.status !== 1) {
+        throw new Error(`Transaction reverted (status=0): ${receipt.hash}`);
+      }
+      return { success: true, txHash: receipt.hash };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`Error recording decision for ${tokenId}:`, errorMessage);

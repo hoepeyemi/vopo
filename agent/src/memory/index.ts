@@ -39,6 +39,11 @@ export class MemorySystem {
     this.maintenance?.stop();
   }
 
+  /** Drain both L2 and L3 write queues before process exit. */
+  async flush(): Promise<void> {
+    await Promise.all([this.l2.flush(), this.l3.flush()]);
+  }
+
   onMemoryEvent(listener: (event: MemoryEvent) => void): void {
     this.eventListeners.push(listener);
   }

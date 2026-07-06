@@ -173,4 +173,9 @@ export class L2EpisodicMemory {
   count(): number {
     return this.memories.length;
   }
+
+  /** Await any in-flight async write so the caller knows the file is up-to-date. */
+  flush(): Promise<void> {
+    return this.writeQueue;
+  }
 }
