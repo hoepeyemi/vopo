@@ -100,6 +100,7 @@ export class LLMService {
         systemParts.push('', 'MEMORY CONTEXT (use to inform your explanation):', memoryContext);
       }
 
+      this.callCount++;
       const content = await this.callQwen(
         QWEN_MAX_MODEL,
         [
@@ -110,7 +111,6 @@ export class LLMService {
         TIMEOUT_MS,
       );
 
-      this.callCount++;
       return content || this.generateTemplateExplanation(analysis);
     } catch (error) {
       console.error('Qwen explanation error, falling back to template:', error instanceof Error ? error.message : error);

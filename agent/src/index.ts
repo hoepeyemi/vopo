@@ -1,4 +1,4 @@
-// vasmo Agent Service Entry Point
+// MemoriVault Agent Service Entry Point
 
 import 'dotenv/config';
 import fs from 'node:fs';
@@ -238,7 +238,7 @@ async function main() {
 
   // Handle graceful shutdown
   const shutdown = () => {
-    console.log('\n🛑 Shutting down vasmo Agent...');
+    console.log('\n🛑 Shutting down MemoriVault Agent...');
     agent.stop();
     process.exit(0);
   };
@@ -247,7 +247,7 @@ async function main() {
   process.on('SIGTERM', shutdown);
 
   // Keep process alive
-  console.log('\n✅ vasmo Agent is live. Press Ctrl+C to stop.\n');
+  console.log('\n✅ MemoriVault Agent is live. Press Ctrl+C to stop.\n');
 }
 
 // Run

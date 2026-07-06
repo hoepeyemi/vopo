@@ -60,21 +60,37 @@ export class MemoryMaintenance {
   async run(): Promise<void> {
     console.log('🧹 Running memory maintenance...');
 
-    // Step 1: Apply decay and prune expired memories
-    const { pruned } = this.l2.applyDecay();
-    if (pruned > 0) {
+    // Step 1: Apply decay and prune expired L2 memories
+    const { pruned: l2Pruned } = this.l2.applyDecay();
+    if (l2Pruned > 0) {
       this.onEvent({
         type: 'pruned',
         tier: 'L2',
         memoryId: 'batch',
-        summary: `Pruned ${pruned} outdated episodic memories (relevance below threshold)`,
+        summary: `Pruned ${l2Pruned} outdated episodic memories (relevance below threshold)`,
         timestamp: Date.now(),
         reason: 'time-decay below 0.08 threshold',
       });
-      console.log(`🗑️  Pruned ${pruned} stale L2 memories`);
+      console.log(`🗑️  Pruned ${l2Pruned} stale L2 memories`);
     }
 
-    // Step 2: Condense L2 clusters into L3 rules per domain
+    // Step 2: Apply decay and prune expired L3 rules (LLM evaluates borderline cases)
+    const l3Pruned = await this.l3.applyDecay(
+      this.llm.evaluateMemoryRelevance.bind(this.llm),
+    );
+    if (l3Pruned > 0) {
+      this.onEvent({
+        type: 'pruned',
+        tier: 'L3',
+        memoryId: 'batch-l3',
+        summary: `Pruned ${l3Pruned} stale semantic rules (age/relevance below threshold)`,
+        timestamp: Date.now(),
+        reason: 'composite decay score below 0.12 threshold',
+      });
+      console.log(`🗑️  Pruned ${l3Pruned} stale L3 rules`);
+    }
+
+    // Step 3: Condense L2 clusters into L3 rules per domain
     for (const { tag, l3Domain } of DOMAINS) {
       await this.condenseCluster(tag, l3Domain);
     }

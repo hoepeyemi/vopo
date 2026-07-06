@@ -63,7 +63,9 @@ export class VasmoAgent {
     };
 
     this.ws.onAnalysisRequest = (tokenId) => {
-      this.analyzeInvoice(tokenId);
+      this.analyzeInvoice(tokenId).catch((e) =>
+        console.error(`analyzeInvoice(${tokenId}) unhandled:`, e),
+      );
     };
 
     // Relay memory events to connected WebSocket clients
@@ -181,13 +183,16 @@ export class VasmoAgent {
 
   private async runAnalysisCycle(): Promise<void> {
     const CYCLE_TIMEOUT_MS = 60_000;
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Analysis cycle timeout')), CYCLE_TIMEOUT_MS),
-    );
+    let timeoutHandle: NodeJS.Timeout;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error('Analysis cycle timeout')), CYCLE_TIMEOUT_MS);
+    });
 
     try {
       await Promise.race([this.runAnalysisCycleInternal(), timeoutPromise]);
+      clearTimeout(timeoutHandle!);
     } catch (error) {
+      clearTimeout(timeoutHandle!);
       if (error instanceof Error && error.message === 'Analysis cycle timeout') {
         console.error('⚠️ Cycle timed out');
         this.broadcastThought({
@@ -372,6 +377,9 @@ export class VasmoAgent {
       return null;
     }
 
+    // Reserve the slot immediately so concurrent WS + cycle calls don't both proceed
+    this.lastAnalysisTime.set(tokenId, Date.now());
+
     try {
       const [invoice, deposit] = await Promise.all([
         this.blockchain.getInvoice(tokenId),
@@ -504,7 +512,6 @@ export class VasmoAgent {
         }
       }
 
-      this.lastAnalysisTime.set(tokenId, Date.now());
       return analysis;
     } catch (error) {
       console.error(`Error analyzing invoice ${tokenId}:`, error);

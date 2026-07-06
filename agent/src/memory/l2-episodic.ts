@@ -141,8 +141,8 @@ export class L2EpisodicMemory {
     return { updated: this.memories.length, pruned: before - this.memories.length };
   }
 
-  getByDomain(domain: MemoryTag, minCount: number): EpisodicMemory[] {
-    return this.memories.filter((m) => m.tags.includes(domain)).slice(0, minCount);
+  getByDomain(domain: MemoryTag, maxCount: number): EpisodicMemory[] {
+    return this.memories.filter((m) => m.tags.includes(domain)).slice(0, maxCount);
   }
 
   getAll(): EpisodicMemory[] {

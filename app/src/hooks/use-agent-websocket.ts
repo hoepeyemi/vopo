@@ -83,7 +83,7 @@ export function useAgentWebSocket() {
 
         } else if (msg.type === 'decision') {
           const d = msg.payload as { tokenId: string; confidence: number; recommendedStrategy: number }
-          pushLog(`decision: token #${d.tokenId} → strategy ${d.recommendedStrategy} (${Math.round(d.confidence * 100)}% conf)`, 'action')
+          pushLog(`decision: token #${d.tokenId} → strategy ${d.recommendedStrategy} (${Math.round(d.confidence)}% conf)`, 'action')
 
         } else if (msg.type === 'execution') {
           const e = msg.payload as { tokenId?: string }

@@ -201,12 +201,12 @@ export class AgentWebSocket {
   }
 
   private handleClientMessage(ws: WebSocket, message: Record<string, unknown>): void {
-    // Handle client requests (e.g., request analysis of specific invoice)
     if (message.type === 'requestAnalysis' && message.tokenId) {
-      // Emit event for agent to handle
-      this.onAnalysisRequest?.(message.tokenId as string);
+      const tokenId = message.tokenId;
+      // Validate: must be a short numeric/alphanumeric string (contract token IDs are integers)
+      if (typeof tokenId !== 'string' || !/^\d{1,10}$/.test(tokenId)) return;
+      this.onAnalysisRequest?.(tokenId);
     }
-
   }
 
   // Callback for analysis requests
