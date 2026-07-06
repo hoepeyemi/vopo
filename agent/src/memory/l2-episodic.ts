@@ -134,7 +134,7 @@ export class L2EpisodicMemory {
   applyDecay(): { updated: number; pruned: number } {
     const before = this.memories.length;
     this.memories = this.memories.filter((m) => {
-      m.relevanceScore = decayedRelevance(m.relevanceScore, m.createdAt, m.accessCount);
+      m.relevanceScore = decayedRelevance(m.createdAt, m.accessCount);
       return !shouldPrune(m.relevanceScore);
     });
     this.persist();

@@ -8,15 +8,12 @@ const MS_PER_DAY = 86_400_000;
 export const PRUNE_THRESHOLD = 0.08; // below this the memory is deleted
 export const CONDENSE_THRESHOLD = 5;  // min L2 memories per domain before condensation
 
-export function decayedRelevance(
-  baseScore: number,
-  createdAt: number,
-  accessCount: number,
-): number {
+// Compute relevance purely from creation time so repeated calls never compound.
+// accessBonus slows decay for frequently-recalled memories (capped at 0.3).
+export function decayedRelevance(createdAt: number, accessCount: number): number {
   const ageDays = (Date.now() - createdAt) / MS_PER_DAY;
-  // Each recall adds a small permanence bonus (capped at 0.3)
   const accessBonus = Math.min(accessCount * 0.04, 0.3);
-  const decayed = baseScore * Math.exp(-DECAY_LAMBDA * ageDays) + accessBonus;
+  const decayed = Math.exp(-DECAY_LAMBDA * ageDays) + accessBonus;
   return Math.max(0, Math.min(1, decayed));
 }
 

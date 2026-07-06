@@ -35,7 +35,7 @@ async function main() {
   console.log("Mock Aave Asset:", mockAaveAsset);
   console.log("Wrap Native MNT:", wrapNativeMnt);
 
-  const InvoiceNFT = await hre.ethers.getContractFactory("InvoiceNFT");
+  const InvoiceNFT = await hre.ethers.getContractFactory("src/InvoiceNFT.sol:InvoiceNFT");
   const YieldVault = await hre.ethers.getContractFactory("YieldVault");
   const PrivacyRegistry = await hre.ethers.getContractFactory("PrivacyRegistry");
   const AgentRouter = await hre.ethers.getContractFactory("AgentRouter");

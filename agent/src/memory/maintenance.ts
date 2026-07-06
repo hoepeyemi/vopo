@@ -20,6 +20,7 @@ const DOMAINS: Array<{ tag: MemoryTag; l3Domain: 'yield' | 'risk' | 'market' | '
 
 export class MemoryMaintenance {
   private timer: NodeJS.Timeout | null = null;
+  private warmupTimer: NodeJS.Timeout | null = null;
   private onEvent: (event: MemoryEvent) => void;
 
   constructor(
@@ -34,12 +35,22 @@ export class MemoryMaintenance {
   start(): void {
     if (this.timer) return;
     // Run once after a short warmup, then every hour
-    setTimeout(() => this.run(), 5 * 60 * 1000);
-    this.timer = setInterval(() => this.run(), MAINTENANCE_INTERVAL_MS);
+    this.warmupTimer = setTimeout(
+      () => { this.run().catch((e) => console.error('Memory maintenance warmup error:', e)); },
+      5 * 60 * 1000,
+    );
+    this.timer = setInterval(
+      () => { this.run().catch((e) => console.error('Memory maintenance error:', e)); },
+      MAINTENANCE_INTERVAL_MS,
+    );
     console.log('🧠 Memory maintenance scheduler started (runs every 60 min)');
   }
 
   stop(): void {
+    if (this.warmupTimer) {
+      clearTimeout(this.warmupTimer);
+      this.warmupTimer = null;
+    }
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;

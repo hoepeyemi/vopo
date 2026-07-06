@@ -263,10 +263,6 @@ async function main() {
       artifactPath: path.join("src", "InvoiceNFT.sol", "InvoiceNFT.json"),
       constructorArgs: [],
       constructorTypes: [],
-      legacySourceOverride: {
-        filePath: path.join(__dirname, "..", "src", "legacy", "InvoiceNFT.sol"),
-        sourcePath: "src/InvoiceNFT.sol",
-      },
     },
     {
       name: "YieldVault",
