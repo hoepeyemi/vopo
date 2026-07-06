@@ -44,9 +44,14 @@ export class L3SemanticMemory {
   }
 
   private persist(): void {
+    // Capture state at call time to avoid mutation-during-write corruption.
+    // Write to a sibling .tmp file then atomically rename so a mid-write
+    // process.exit never leaves a truncated or partially-written JSON file.
     const snapshot = JSON.stringify(this.rules, null, 2);
+    const tmp = STORE_PATH + '.tmp';
     this.writeQueue = this.writeQueue
-      .then(() => fsPromises.writeFile(STORE_PATH, snapshot, 'utf8'))
+      .then(() => fsPromises.writeFile(tmp, snapshot, 'utf8'))
+      .then(() => fsPromises.rename(tmp, STORE_PATH))
       .catch((err) => console.error('[L3] Failed to persist rules:', err));
   }
 
@@ -71,9 +76,12 @@ export class L3SemanticMemory {
 
     this.rules.push(semantic);
 
-    // Evict oldest/lowest-confidence rules when over cap
+    // Evict lowest-scoring rules when over cap.
+    // Use ruleScore (confidence × recency × weight + hitScore) so that a freshly
+    // distilled rule is not immediately discarded in favour of stale low-confidence
+    // rules that happen to have a marginally higher raw confidence value.
     if (this.rules.length > MAX_RULES) {
-      this.rules.sort((a, b) => a.confidence - b.confidence || a.createdAt - b.createdAt);
+      this.rules.sort((a, b) => this.ruleScore(a) - this.ruleScore(b));
       this.rules.splice(0, this.rules.length - MAX_RULES);
     }
 

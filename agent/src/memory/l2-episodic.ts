@@ -75,11 +75,14 @@ export class L2EpisodicMemory {
   }
 
   private persist(): void {
-    // Capture the state to write at the moment persist() is called so that
-    // a subsequent mutation while awaiting the write doesn't corrupt the file.
+    // Capture state at call time to avoid mutation-during-write corruption.
+    // Write to a sibling .tmp file then atomically rename so a mid-write
+    // process.exit never leaves a truncated or partially-written JSON file.
     const snapshot = JSON.stringify(this.memories, null, 2);
+    const tmp = STORE_PATH + '.tmp';
     this.writeQueue = this.writeQueue
-      .then(() => fsPromises.writeFile(STORE_PATH, snapshot, 'utf8'))
+      .then(() => fsPromises.writeFile(tmp, snapshot, 'utf8'))
+      .then(() => fsPromises.rename(tmp, STORE_PATH))
       .catch((err) => console.error('[L2] Failed to persist memories:', err));
   }
 

@@ -102,9 +102,13 @@ export class LLMService {
       }
 
       // Reserve slot before the await so concurrent callers can't both slip through.
-      // The index is captured so we can roll back the slot if the call fails.
-      const tsIdx = this.callTimestamps.length;
-      this.callTimestamps.push(Date.now());
+      // Capture the exact timestamp value — NOT the array index — so the rollback
+      // on failure is safe under concurrent callers. Splicing by index is unsafe:
+      // if caller A fails first and splices index 5, caller B's entry shifts from
+      // index 6 to 5, and B's subsequent splice(6) removes an unrelated entry,
+      // silently erasing a successful call from the sliding window.
+      const myTs = Date.now();
+      this.callTimestamps.push(myTs);
       try {
         const content = await this.callQwen(
           QWEN_MAX_MODEL,
@@ -117,9 +121,11 @@ export class LLMService {
         );
         return content || this.generateTemplateExplanation(analysis);
       } catch (error) {
-        // Network / timeout error: return the slot so the rate limiter isn't
-        // depleted by transient failures and not actual Qwen-Max usage.
-        this.callTimestamps.splice(tsIdx, 1);
+        // Roll back only this call's slot. Use lastIndexOf so that if two calls
+        // happen within the same millisecond (identical timestamps) we remove
+        // the most-recently-added one — our own — rather than an earlier entry.
+        const idx = this.callTimestamps.lastIndexOf(myTs);
+        if (idx !== -1) this.callTimestamps.splice(idx, 1);
         console.error('Qwen explanation error, falling back to template:', error instanceof Error ? error.message : error);
         return this.generateTemplateExplanation(analysis);
       }

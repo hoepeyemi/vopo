@@ -533,7 +533,10 @@ export class VasmoAgent {
       // Release the rate-limit slot — a transient error shouldn't block this token for 5 min
       this.lastAnalysisTime.delete(tokenId);
       console.error(`Error analyzing invoice ${tokenId}:`, error);
-      this.ws.broadcastError(tokenId, `Analysis failed: ${error}`);
+      const safeMsg = error instanceof Error
+        ? error.message.split('\n')[0].slice(0, 120)
+        : 'Unknown error';
+      this.ws.broadcastError(tokenId, `Analysis failed: ${safeMsg}`);
       return null;
     }
   }

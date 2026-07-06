@@ -241,7 +241,13 @@ export class AgentWebSocket {
 
   private sendToClient(ws: WebSocket, message: WebSocketMessage): void {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(message));
+      try {
+        ws.send(JSON.stringify(message));
+      } catch (err) {
+        // Socket may have transitioned to CLOSING between the readyState check and send
+        console.warn('WebSocket sendToClient failed, removing client:', (err as Error).message);
+        this.clients.delete(ws);
+      }
     }
   }
 

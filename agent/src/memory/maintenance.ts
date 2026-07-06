@@ -125,7 +125,14 @@ export class MemoryMaintenance {
 
     const semantic = this.l3.add(rule, domain, candidates.map((e) => e.id), 75);
 
-    // Remove condensed episodes from L2 (they're now distilled)
+    // Flush L3 to disk before removing from L2. If the process is killed between
+    // these two operations, the worst case is episodes remain in L2 alongside the
+    // L3 rule — the alreadyCondensed guard on the next run prevents re-condensing.
+    // Without this flush, a kill between L2's write completing and L3's write
+    // completing would delete the episodes from disk with no rule to show for it.
+    await this.l3.flush();
+
+    // Remove condensed episodes from L2 (they're now distilled into an L3 rule)
     this.l2.removeByIds(candidates.map((e) => e.id));
 
     this.onEvent({
