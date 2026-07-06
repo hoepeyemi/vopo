@@ -1,6 +1,13 @@
 // L3 Semantic Memory — distilled "rules of thumb" condensed from episodic events
 // Persisted as JSON. Retrieved by domain keyword matching.
-// Decay: composite score = confidence×0.4 + recencyScore×0.4 + hitScore×0.2
+//
+// Decay formula (multiplicative so rules always tend to zero):
+//   score = (confidence/100 × recencyScore) × 0.7 + hitScore × 0.3
+//   recencyScore = e^(-λ × ageDays)   λ=0.008 → half-life ~87 days
+//   hitScore     = min(hitCount / 10, 1)
+//
+// A confidence=75 rule with no hits decays below PRUNE_THRESHOLD at ~200 days.
+// Frequent hits (hitCount≥10) can sustain a rule indefinitely.
 // Rules below PRUNE_THRESHOLD are removed; LLM re-evaluates borderline ones.
 
 import fs from 'node:fs';
@@ -11,11 +18,10 @@ import { SemanticMemory } from './types.js';
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const STORE_PATH = path.join(DATA_DIR, 'l3-semantic.json');
 const MAX_RULES = 200;
-// Half-life of ~90 days for an unaccessed rule
-const DECAY_LAMBDA = 0.008;
+const DECAY_LAMBDA = 0.008;       // e-folding: ~125 days
 const MS_PER_DAY = 86_400_000;
-const PRUNE_THRESHOLD = 0.12;   // composite score below this → prune candidate
-const BORDERLINE_BAND = 0.08;   // within this above threshold → ask LLM before pruning
+const PRUNE_THRESHOLD = 0.12;    // composite score below this → prune candidate
+const BORDERLINE_BAND = 0.08;    // 0.12–0.20 → ask LLM before pruning
 
 export class L3SemanticMemory {
   private rules: SemanticMemory[] = [];
@@ -96,14 +102,16 @@ export class L3SemanticMemory {
     return top;
   }
 
-  // Compute a composite relevance score for a rule (0–1).
-  // Uses time-decay on age + a hit-frequency component + the stored confidence.
+  // Composite relevance score in [0, 1].
+  // Confidence and recency are multiplicative — both must be high for a rule to
+  // survive. The hit component is additive so frequently-recalled rules stay alive
+  // even when old. A confidence=75 rule with zero hits crosses PRUNE_THRESHOLD at
+  // ~200 days; with 10+ hits it survives indefinitely.
   private ruleScore(rule: SemanticMemory): number {
     const ageDays = (Date.now() - rule.createdAt) / MS_PER_DAY;
     const recencyScore = Math.exp(-DECAY_LAMBDA * ageDays);
-    // Hits beyond 10 contribute little extra; cap at 1
     const hitScore = Math.min(rule.hitCount / 10, 1);
-    return rule.confidence / 100 * 0.4 + recencyScore * 0.4 + hitScore * 0.2;
+    return (rule.confidence / 100) * recencyScore * 0.7 + hitScore * 0.3;
   }
 
   // Prune L3 rules whose composite score falls below threshold.
@@ -112,7 +120,7 @@ export class L3SemanticMemory {
   // Returns pruned count.
   async applyDecay(
     llmEvaluate?: (content: string) => Promise<number>,
-  ): Promise<number> {
+  ): Promise<{ count: number; prunedIds: string[] }> {
     const definiteKeep: SemanticMemory[] = [];
     const definitePrune: SemanticMemory[] = [];
     const borderline: SemanticMemory[] = [];
@@ -156,7 +164,7 @@ export class L3SemanticMemory {
     const pruned = before - this.rules.length;
 
     if (pruned > 0) this.persist();
-    return pruned;
+    return { count: pruned, prunedIds: definitePrune.map((r) => r.id) };
   }
 
   getAll(): SemanticMemory[] {

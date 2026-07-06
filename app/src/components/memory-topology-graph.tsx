@@ -146,13 +146,16 @@ export function MemoryTopologyGraph({ events, className }: MemoryTopologyGraphPr
         }
 
         if (ev.type === 'pruned') {
-          if (ev.memoryId === 'batch') {
+          if (ev.tier === 'L3') {
+            // Individual L3 rule pruned — remove from graph
+            l3.delete(ev.memoryId)
+          } else if (ev.memoryId === 'batch') {
             // Backend batch-prune: delete all inactive/condensed L2 nodes at once
             for (const [id, n] of Array.from(l2)) {
               if (!n.active) l2.delete(id)
             }
           } else {
-            // Individual prune: remove immediately rather than leaving inactive ghosts
+            // Individual L2 prune: remove immediately
             l2.delete(ev.memoryId)
           }
         }

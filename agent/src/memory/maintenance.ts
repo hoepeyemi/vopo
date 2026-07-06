@@ -75,18 +75,21 @@ export class MemoryMaintenance {
     }
 
     // Step 2: Apply decay and prune expired L3 rules (LLM evaluates borderline cases)
-    const l3Pruned = await this.l3.applyDecay(
+    const { count: l3Pruned, prunedIds: l3PrunedIds } = await this.l3.applyDecay(
       this.llm.evaluateMemoryRelevance.bind(this.llm),
     );
     if (l3Pruned > 0) {
-      this.onEvent({
-        type: 'pruned',
-        tier: 'L3',
-        memoryId: 'batch-l3',
-        summary: `Pruned ${l3Pruned} stale semantic rules (age/relevance below threshold)`,
-        timestamp: Date.now(),
-        reason: 'composite decay score below 0.12 threshold',
-      });
+      // Emit one event per pruned rule so the frontend graph removes each node
+      for (const id of l3PrunedIds) {
+        this.onEvent({
+          type: 'pruned',
+          tier: 'L3',
+          memoryId: id,
+          summary: `Semantic rule expired (composite decay below threshold)`,
+          timestamp: Date.now(),
+          reason: 'composite decay score below 0.12 threshold',
+        });
+      }
       console.log(`🗑️  Pruned ${l3Pruned} stale L3 rules`);
     }
 
