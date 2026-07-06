@@ -525,7 +525,7 @@ function detectRegime(): MarketRegime {
   const secondHalf = recentPoints.slice(Math.floor(recentPoints.length / 2));
   const firstAvg = firstHalf.reduce((sum, p) => sum + p.ethPrice, 0) / firstHalf.length;
   const secondAvg = secondHalf.reduce((sum, p) => sum + p.ethPrice, 0) / secondHalf.length;
-  const trendPercent = ((secondAvg - firstAvg) / firstAvg) * 100;
+  const trendPercent = firstAvg !== 0 ? ((secondAvg - firstAvg) / firstAvg) * 100 : 0;
 
   // Determine regime based on signals
   const highVolatilityRatio = (volatilityCounts.high + volatilityCounts.extreme) / recentPoints.length;

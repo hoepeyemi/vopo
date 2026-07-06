@@ -357,7 +357,13 @@ export class VasmoAgent {
       this.consecutiveFailures = 0;
     } catch (error) {
       console.error('Error in analysis cycle:', error);
-      this.ws.broadcastError('system', `Analysis cycle error: ${error}`);
+      // Truncate to the first line of the message only; ethers.js errors embed
+      // contract addresses and ABI-decoded revert data that should not be sent
+      // to WebSocket clients.
+      const safeMsg = error instanceof Error
+        ? error.message.split('\n')[0].slice(0, 120)
+        : 'Unknown error';
+      this.ws.broadcastError('system', `Analysis cycle error: ${safeMsg}`);
       this.consecutiveFailures++;
       if (this.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
         this.tripCircuitBreaker();

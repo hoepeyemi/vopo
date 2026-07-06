@@ -205,6 +205,14 @@ export class BlockchainService {
     try {
       const invoice = await this.invoiceNFT.getInvoice(tokenId);
 
+      // A zero-value struct is returned by contracts that use storage defaults
+      // for non-existent tokens (no revert). Treat it as "not found" to avoid
+      // running a full analysis pass on garbage data.
+      const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
+      if (!Number(invoice.dueDate) && (!invoice.issuer || invoice.issuer === ZERO_ADDR)) {
+        return null;
+      }
+
       return {
         tokenId,
         dataCommitment: invoice.dataCommitment,

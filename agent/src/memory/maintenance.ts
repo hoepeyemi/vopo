@@ -108,8 +108,15 @@ export class MemoryMaintenance {
     const episodes = this.l2.getByDomain(tag, 50);
     if (episodes.length < CONDENSE_THRESHOLD) return;
 
+    // Exclude episodes already referenced by an L3 rule to prevent duplicate
+    // rules being created if the process crashed between l3.add and l2.removeByIds
+    // on a previous run (both use async write queues so the gap is real).
+    const alreadyCondensed = new Set(this.l3.getAll().flatMap((r) => r.evidence));
+    const eligible = episodes.filter((e) => !alreadyCondensed.has(e.id));
+    if (eligible.length < CONDENSE_THRESHOLD) return;
+
     // Take the oldest episodes (they have the most stable signal)
-    const candidates = episodes
+    const candidates = eligible
       .sort((a, b) => a.createdAt - b.createdAt)
       .slice(0, 10);
 

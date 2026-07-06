@@ -227,11 +227,15 @@ export class AgentWebSocket {
       }
     });
 
-    // Keep last 50 messages in queue for new connections
-    this.messageQueue.push(message);
-    if (this.messageQueue.length > 50) {
-      const dropped = this.messageQueue.shift();
-      console.log(`[WebSocket] Message queue full, dropped oldest message: ${dropped?.type || 'unknown'}`);
+    // Only replay non-sensitive message types to new connections.
+    // thought / decision / execution payloads contain invoice IDs, risk scores,
+    // and tx hashes that should not be disclosed to late-joining clients.
+    const REPLAYABLE = new Set(['status', 'memory']);
+    if (REPLAYABLE.has(message.type)) {
+      this.messageQueue.push(message);
+      if (this.messageQueue.length > 50) {
+        this.messageQueue.shift();
+      }
     }
   }
 

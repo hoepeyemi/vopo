@@ -98,17 +98,21 @@ export function MemoryTopologyGraph({ events, className }: MemoryTopologyGraphPr
     l3: new Map(),
     highlighted: new Set(),
   })
-  const processedCount = useRef(0)
+  // Track by the timestamp of the newest processed event rather than array length.
+  // events is capped at 100 by the hook, so events.length − processedCount would
+  // permanently return 0 once the cap was reached, freezing the graph.
+  const lastProcessedTs = useRef(0)
   const highlightTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   // Process new events incrementally.
   // events is newest-first (prepended in hook), so new items are at the front.
   useEffect(() => {
-    const newCount = events.length - processedCount.current
-    if (newCount <= 0) return
-    // Slice the new front elements and reverse so oldest-new is processed first
-    const newEvents = events.slice(0, newCount).reverse()
-    processedCount.current = events.length
+    const newEvents = events.filter(e => e.timestamp > lastProcessedTs.current)
+    if (newEvents.length === 0) return
+    // Update the high-water mark before the state update so re-renders don't reprocess
+    lastProcessedTs.current = Math.max(...newEvents.map(e => e.timestamp))
+    // Reverse so oldest-new is applied first (map mutations are order-sensitive)
+    newEvents.reverse()
 
     setGraph(prev => {
       const l2 = new Map(prev.l2)

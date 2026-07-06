@@ -101,9 +101,14 @@ export class L2EpisodicMemory {
 
     this.memories.push(memory);
 
-    // Keep store from growing unbounded
+    // Keep store from growing unbounded. Sort by live decay score rather than the
+    // stored relevanceScore (which is only updated hourly) so the eviction decision
+    // is accurate even between maintenance cycles when all new memories share the
+    // same initial score of 1.0.
     if (this.memories.length > MAX_MEMORIES) {
-      this.memories.sort((a, b) => a.relevanceScore - b.relevanceScore);
+      this.memories.sort(
+        (a, b) => decayedRelevance(a.createdAt, a.accessCount) - decayedRelevance(b.createdAt, b.accessCount),
+      );
       this.memories.splice(0, this.memories.length - MAX_MEMORIES);
     }
 

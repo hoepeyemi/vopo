@@ -101,20 +101,30 @@ export class LLMService {
         systemParts.push('', 'MEMORY CONTEXT (use to inform your explanation):', memoryContext);
       }
 
+      // Reserve slot before the await so concurrent callers can't both slip through.
+      // The index is captured so we can roll back the slot if the call fails.
+      const tsIdx = this.callTimestamps.length;
       this.callTimestamps.push(Date.now());
-      const content = await this.callQwen(
-        QWEN_MAX_MODEL,
-        [
-          { role: 'system', content: systemParts.join('\n') },
-          { role: 'user', content: this.buildPrompt(analysis) },
-        ],
-        300,
-        TIMEOUT_MS,
-      );
-
-      return content || this.generateTemplateExplanation(analysis);
+      try {
+        const content = await this.callQwen(
+          QWEN_MAX_MODEL,
+          [
+            { role: 'system', content: systemParts.join('\n') },
+            { role: 'user', content: this.buildPrompt(analysis) },
+          ],
+          300,
+          TIMEOUT_MS,
+        );
+        return content || this.generateTemplateExplanation(analysis);
+      } catch (error) {
+        // Network / timeout error: return the slot so the rate limiter isn't
+        // depleted by transient failures and not actual Qwen-Max usage.
+        this.callTimestamps.splice(tsIdx, 1);
+        console.error('Qwen explanation error, falling back to template:', error instanceof Error ? error.message : error);
+        return this.generateTemplateExplanation(analysis);
+      }
     } catch (error) {
-      console.error('Qwen explanation error, falling back to template:', error instanceof Error ? error.message : error);
+      console.error('Qwen explanation setup error:', error instanceof Error ? error.message : error);
       return this.generateTemplateExplanation(analysis);
     }
   }
