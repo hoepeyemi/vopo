@@ -3,6 +3,7 @@
 // Set DATABASE_URL in env to upgrade to pgvector automatically.
 
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { EpisodicMemory, LogEpisodeParams, MemoryTag } from './types.js';
@@ -49,6 +50,9 @@ function cosineSimilarity(tfA: Map<string, number>, tfB: Map<string, number>): n
 
 export class L2EpisodicMemory {
   private memories: EpisodicMemory[] = [];
+  // Serialize async writes via a promise chain so concurrent mutations
+  // never interleave and the event loop is never blocked on disk I/O.
+  private writeQueue: Promise<void> = Promise.resolve();
 
   constructor() {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -71,7 +75,12 @@ export class L2EpisodicMemory {
   }
 
   private persist(): void {
-    fs.writeFileSync(STORE_PATH, JSON.stringify(this.memories, null, 2), 'utf8');
+    // Capture the state to write at the moment persist() is called so that
+    // a subsequent mutation while awaiting the write doesn't corrupt the file.
+    const snapshot = JSON.stringify(this.memories, null, 2);
+    this.writeQueue = this.writeQueue
+      .then(() => fsPromises.writeFile(STORE_PATH, snapshot, 'utf8'))
+      .catch((err) => console.error('[L2] Failed to persist memories:', err));
   }
 
   async add(params: LogEpisodeParams): Promise<EpisodicMemory> {
@@ -112,9 +121,10 @@ export class L2EpisodicMemory {
 
     const scored = pool.map((m) => {
       const memTf = termFrequency(tokenize(m.content));
-      // Blend semantic similarity with time-decayed relevance
       const sim = cosineSimilarity(queryTf, memTf);
-      const score = sim * 0.7 + m.relevanceScore * 0.3;
+      // Use live decay rather than the stale stored relevanceScore (updated hourly at most)
+      const liveRelevance = decayedRelevance(m.createdAt, m.accessCount);
+      const score = sim * 0.7 + liveRelevance * 0.3;
       return { memory: m, score };
     });
 

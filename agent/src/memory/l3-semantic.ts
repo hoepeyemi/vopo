@@ -11,6 +11,7 @@
 // Rules below PRUNE_THRESHOLD are removed; LLM re-evaluates borderline ones.
 
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { SemanticMemory } from './types.js';
@@ -25,6 +26,7 @@ const BORDERLINE_BAND = 0.08;    // 0.12–0.20 → ask LLM before pruning
 
 export class L3SemanticMemory {
   private rules: SemanticMemory[] = [];
+  private writeQueue: Promise<void> = Promise.resolve();
 
   constructor() {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -42,7 +44,10 @@ export class L3SemanticMemory {
   }
 
   private persist(): void {
-    fs.writeFileSync(STORE_PATH, JSON.stringify(this.rules, null, 2), 'utf8');
+    const snapshot = JSON.stringify(this.rules, null, 2);
+    this.writeQueue = this.writeQueue
+      .then(() => fsPromises.writeFile(STORE_PATH, snapshot, 'utf8'))
+      .catch((err) => console.error('[L3] Failed to persist rules:', err));
   }
 
   add(rule: string, domain: SemanticMemory['domain'], evidence: string[], confidence: number): SemanticMemory {

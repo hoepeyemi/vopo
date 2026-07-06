@@ -310,6 +310,9 @@ export class BlockchainService {
         async () => {
           const tx = await this.agentRouter.recordDecision(tokenId, strategy, confidence, reasoning);
           const receipt = await tx.wait();
+          if (receipt.status !== 1) {
+            throw new Error(`Transaction reverted (status=0): ${receipt.hash}`);
+          }
           return { success: true, txHash: receipt.hash };
         },
         `recordDecision(${tokenId})`,
@@ -459,7 +462,7 @@ export class BlockchainService {
     this.lastMarketConditions = {
       ethPrice,
       nativePrice,
-      ethPriceChange24h: priceChange,
+      priceChange4h: priceChange,
       volatilityLevel,
       lastUpdated: now,
     };
@@ -488,7 +491,7 @@ export class BlockchainService {
 
   /// Check for market alerts that should trigger strategy changes
   checkMarketAlert(conditions: MarketConditions): MarketAlert | null {
-    const priceChange = conditions.ethPriceChange24h;
+    const priceChange = conditions.priceChange4h;
     const absChange = Math.abs(priceChange);
 
     if (absChange < 3) return null; // No significant movement

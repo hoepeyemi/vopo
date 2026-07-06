@@ -19,7 +19,9 @@ export default function AgentPage() {
   const { activeDepositsCount, totalYield } = useYieldVault()
   const { status: wsStatus, memoryEvents, logEntries } = useAgentWebSocket()
 
-  const yieldFormatted = Number(formatUnits(BigInt(totalYield || 0), 18))
+  const yieldFormatted = (() => {
+    try { return Number(formatUnits(BigInt(totalYield || 0), 18)) } catch { return 0 }
+  })()
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] bg-grid noise-overlay scan-line pb-8">

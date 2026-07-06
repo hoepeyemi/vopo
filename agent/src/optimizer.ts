@@ -22,7 +22,7 @@ export type MarketRegime = 'bull' | 'bear' | 'volatile' | 'stable' | 'unknown';
 interface MarketDataPoint {
   timestamp: number;
   ethPrice: number;
-  priceChange24h: number;
+  priceChange4h: number;
   volatility: string;
 }
 
@@ -477,7 +477,7 @@ export function updateMarketRegime(marketConditions: MarketConditions): MarketRe
   marketHistory.push({
     timestamp: now,
     ethPrice: marketConditions.ethPrice ?? 0,
-    priceChange24h: marketConditions.ethPriceChange24h,
+    priceChange4h: marketConditions.priceChange4h,
     volatility: marketConditions.volatilityLevel,
   });
 
@@ -509,7 +509,7 @@ function detectRegime(): MarketRegime {
   const recentPoints = marketHistory.slice(-20); // Last ~10 minutes
 
   // Calculate average price change
-  const avgPriceChange = recentPoints.reduce((sum, p) => sum + p.priceChange24h, 0) / recentPoints.length;
+  const avgPriceChange = recentPoints.reduce((sum, p) => sum + p.priceChange4h, 0) / recentPoints.length;
 
   // Count volatility levels
   const volatilityCounts = { low: 0, medium: 0, high: 0, extreme: 0 };

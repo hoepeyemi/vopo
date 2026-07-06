@@ -97,7 +97,7 @@ export interface WebSocketMessage {
 export interface MarketConditions {
   ethPrice: number | null;
   nativePrice: number | null;
-  ethPriceChange24h: number; // percentage
+  priceChange4h: number; // percentage change over the last ~4 hours
   volatilityLevel: 'low' | 'medium' | 'high' | 'extreme';
   lastUpdated: number;
 }

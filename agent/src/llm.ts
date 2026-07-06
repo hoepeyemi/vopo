@@ -25,8 +25,10 @@ interface QwenResponse {
 export class LLMService {
   private apiKey: string | null = null;
   private enabled = false;
-  private callCount = 0;
-  private lastCallTime = 0;
+  // Sliding-window rate limiter: timestamps of recent Qwen-Max calls.
+  // Entries older than rateLimitWindowMs are dropped before each check,
+  // so a burst at a window boundary can never exceed maxCallsPerWindow.
+  private callTimestamps: number[] = [];
   private readonly rateLimitWindowMs = 60_000;
   private readonly maxCallsPerWindow = 30;
 
@@ -42,11 +44,10 @@ export class LLMService {
 
   private checkRateLimit(): boolean {
     const now = Date.now();
-    if (now - this.lastCallTime > this.rateLimitWindowMs) {
-      this.callCount = 0;
-      this.lastCallTime = now;
-    }
-    return this.callCount < this.maxCallsPerWindow;
+    const cutoff = now - this.rateLimitWindowMs;
+    // Drop calls that have aged out of the sliding window
+    this.callTimestamps = this.callTimestamps.filter((t) => t > cutoff);
+    return this.callTimestamps.length < this.maxCallsPerWindow;
   }
 
   private async callQwen(
@@ -100,7 +101,7 @@ export class LLMService {
         systemParts.push('', 'MEMORY CONTEXT (use to inform your explanation):', memoryContext);
       }
 
-      this.callCount++;
+      this.callTimestamps.push(Date.now());
       const content = await this.callQwen(
         QWEN_MAX_MODEL,
         [

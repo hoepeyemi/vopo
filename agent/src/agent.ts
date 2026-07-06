@@ -245,7 +245,7 @@ export class VasmoAgent {
           message: `${alertEmoji} ${this.currentMarketAlert.message}`,
           timestamp: Date.now(),
           data: {
-            priceChange: this.currentMarketConditions.ethPriceChange24h,
+            priceChange: this.currentMarketConditions.priceChange4h,
             volatility: this.currentMarketConditions.volatilityLevel,
             ethPrice: this.currentMarketConditions.ethPrice,
           },
@@ -263,11 +263,11 @@ export class VasmoAgent {
         // Log significant market events to episodic memory
         if (this.currentMarketAlert.level === 'critical') {
           await this.memory.logEpisode({
-            content: `CRITICAL market alert: ${this.currentMarketAlert.message}. ETH price change: ${this.currentMarketConditions.ethPriceChange24h.toFixed(1)}%. All strategies forced to Hold.`,
+            content: `CRITICAL market alert: ${this.currentMarketAlert.message}. ETH price change: ${this.currentMarketConditions.priceChange4h.toFixed(1)}%. All strategies forced to Hold.`,
             tags: ['market-regime'],
             marketRegime: regime,
             metadata: {
-              priceChange: this.currentMarketConditions.ethPriceChange24h,
+              priceChange: this.currentMarketConditions.priceChange4h,
               volatility: this.currentMarketConditions.volatilityLevel,
             },
           });
@@ -387,6 +387,8 @@ export class VasmoAgent {
       ]);
 
       if (!invoice) {
+        // Release the rate-limit slot so this token can be retried next cycle
+        this.lastAnalysisTime.delete(tokenId);
         this.ws.broadcastError(tokenId, `Invoice #${tokenId} not found`);
         return null;
       }
@@ -514,6 +516,8 @@ export class VasmoAgent {
 
       return analysis;
     } catch (error) {
+      // Release the rate-limit slot — a transient error shouldn't block this token for 5 min
+      this.lastAnalysisTime.delete(tokenId);
       console.error(`Error analyzing invoice ${tokenId}:`, error);
       this.ws.broadcastError(tokenId, `Analysis failed: ${error}`);
       return null;

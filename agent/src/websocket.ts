@@ -215,9 +215,15 @@ export class AgentWebSocket {
   broadcast(message: WebSocketMessage): void {
     const data = JSON.stringify(message);
 
-    this.clients.forEach((info) => {
+    this.clients.forEach((info, ws) => {
       if (info.ws.readyState === WebSocket.OPEN) {
-        info.ws.send(data);
+        try {
+          info.ws.send(data);
+        } catch (err) {
+          // Socket may have transitioned to CLOSING between the readyState check and send
+          console.warn('WebSocket send failed, removing client:', (err as Error).message);
+          this.clients.delete(ws);
+        }
       }
     });
 

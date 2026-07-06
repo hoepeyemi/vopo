@@ -44,11 +44,11 @@ export function MemoryEventFeed({ events, maxEntries = 12, className }: MemoryEv
 
   return (
     <div className={cn('space-y-0', className)}>
-      {visible.map((ev) => {
+      {visible.map((ev, i) => {
         const cfg = TYPE_CONFIG[ev.type]
         return (
           <div
-            key={ev.memoryId + ev.timestamp}
+            key={`${ev.memoryId}-${ev.timestamp}-${i}`}
             className="flex items-start gap-2 py-2 border-b border-[#1f1f1f] last:border-b-0 animate-fade-in"
           >
             <span className="text-[#444444] select-none">&gt;</span>
