@@ -247,7 +247,12 @@ export class BlockchainService {
         active: deposit.active,
       };
     } catch (error) {
-      console.error(`Error fetching deposit ${tokenId}:`, error);
+      // Contract reverts with "missing revert data" when no deposit exists for this
+      // tokenId — that's a normal state, not an error worth logging.
+      const msg = error instanceof Error ? error.message : String(error);
+      if (!msg.includes('missing revert data') && !msg.includes('could not decode')) {
+        console.warn(`[blockchain] getDeposit(${tokenId}) unexpected error: ${msg.split('\n')[0].slice(0, 120)}`);
+      }
       return null;
     }
   }

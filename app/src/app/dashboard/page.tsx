@@ -67,10 +67,13 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  // Live accrued yield summed from all active deposits (contract's totalYieldGenerated
+  // only increments on withdrawal, so it reads 0 while yield is still accruing).
+  const [liveAccruedYield, setLiveAccruedYield] = useState(0)
 
   const { isConnected } = useAccount()
   const { totalInvoices } = useInvoiceNFT()
-  const { tvl, totalYield, activeDepositsCount, conservativeAPY, aggressiveAPY } = useYieldVault()
+  const { tvl, activeDepositsCount, conservativeAPY, aggressiveAPY } = useYieldVault()
 
   const fetchInvoices = async () => {
     if (!isConnected) {
@@ -89,10 +92,13 @@ export default function Dashboard() {
       const data = await response.json()
 
       if (data.success && data.data.invoices) {
+        let totalAccrued = 0
         const formattedInvoices: InvoiceDisplay[] = data.data.invoices.map((inv: InvoiceResponse) => {
           const dueDate = new Date(inv.dueDate)
           const daysUntilDue = Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
           const principal = inv.deposit ? Number(formatUnits(BigInt(inv.deposit.principal), 18)) : 0
+          const accrued = inv.deposit ? Number(formatUnits(BigInt(inv.deposit.accruedYield), 18)) : 0
+          totalAccrued += accrued
           const strategy = strategyLabelFrom(inv)
           const isInYield = Boolean(inv.deposit) || inv.status === "InYield"
 
@@ -105,12 +111,13 @@ export default function Dashboard() {
             daysUntilDue,
             strategy,
             apy: strategy === "aggressive" ? `${aggressiveAPY}%` : strategy === "conservative" ? `${conservativeAPY}%` : "—",
-            accruedYield: inv.deposit ? `+$${Number(formatUnits(BigInt(inv.deposit.accruedYield), 18)).toFixed(2)}` : "$0.00",
+            accruedYield: inv.deposit ? `+$${accrued.toFixed(2)}` : "$0.00",
             status: isInYield ? "InYield" : inv.status,
             riskScore: inv.riskScore || 75,
           }
         })
         setInvoices(formattedInvoices)
+        setLiveAccruedYield(totalAccrued)
       }
     } catch (err) {
       console.error("Failed to fetch invoices:", err)
@@ -146,7 +153,7 @@ export default function Dashboard() {
   // BigInt() throws a SyntaxError on decimal strings (e.g. "10000.0"), so use
   // Number() directly on the pre-formatted value.
   const tvlFormatted = Number(tvl || 0)
-  const yieldFormatted = Number(totalYield || 0)
+  const yieldFormatted = liveAccruedYield
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] bg-grid noise-overlay scan-line pb-8">

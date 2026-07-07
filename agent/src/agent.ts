@@ -32,7 +32,10 @@ export class VasmoAgent {
   private analysisLoop: NodeJS.Timeout | null = null;
 
   private lastAnalysisTime: Map<string, number> = new Map();
-  private readonly ANALYSIS_COOLDOWN_MS = 5 * 60 * 1000;
+  // Cooldown slightly shorter than the 30-second analysis interval so each
+  // invoice is analyzed every cycle without risk of double-analysis from
+  // concurrent WS triggers and scheduled cycles.
+  private readonly ANALYSIS_COOLDOWN_MS = 25 * 1000;
 
   private consecutiveFailures = 0;
   private readonly MAX_CONSECUTIVE_FAILURES = 3;
