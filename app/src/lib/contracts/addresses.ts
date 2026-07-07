@@ -47,12 +47,12 @@ const emptyAddresses: ContractAddresses = {
 const addresses: Partial<Record<ChainId, ContractAddresses>> = {
   // Testnets - will be populated after deployment
   [CHAIN_IDS.MANTLE_SEPOLIA]: {
-    invoiceNFT: "0x76799a06A64f0b1C24Dd688348c6c2D2B215b173",
-    yieldVault: "0xEfcae7a8c221956D1B3aff5bCDB0267e4aD6646A",
-    agentRouter: "0x38cf9B34d8Ca1d041FfB876Bf73f8DE2Cb119E01",
-    privacyRegistry: "0x1941dF807C71A5261468de9dBDA9ceF626e635d3",
-    pythOracle: "0xD793Bb98C1B0b94E5392370d031ED76DeDeAcDd1",
-    aaveYieldSource: "0x413FbA572293494972636975BEe37477dB405652",
+    invoiceNFT: (process.env.NEXT_PUBLIC_INVOICE_NFT_ADDRESS || "0x5F1b5A2BF9B38528F74a6d3EDa585C9417050FBa") as `0x${string}`,
+    yieldVault: (process.env.NEXT_PUBLIC_YIELD_VAULT_ADDRESS || "0xb8129B7710C4a63B39735FA560c28C9A2303e095") as `0x${string}`,
+    agentRouter: (process.env.NEXT_PUBLIC_AGENT_ROUTER_ADDRESS || "0x51C6620A0846cA41845756f0315412981487E947") as `0x${string}`,
+    privacyRegistry: (process.env.NEXT_PUBLIC_PRIVACY_REGISTRY_ADDRESS || "0xe87632AdEdDDc580c726894190c209540FEE5a96") as `0x${string}`,
+    pythOracle: "0x025C18Ccc2403D7a8cb7aD20Ac4924b16AF26e13" as `0x${string}`,
+    aaveYieldSource: "0x9700149E7fE5CAAA16940BD1ae775a173e1e33B5" as `0x${string}`,
   },
   [CHAIN_IDS.ARBITRUM_SEPOLIA]: { ...emptyAddresses },
   [CHAIN_IDS.POLYGON_AMOY]: { ...emptyAddresses },

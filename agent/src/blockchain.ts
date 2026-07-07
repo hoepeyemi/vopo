@@ -430,7 +430,11 @@ export class BlockchainService {
       // Price has 8 decimals
       return Number(price) / 1e8;
     } catch (error) {
-      console.error(`Error fetching ${feed} price:`, error);
+      // Pyth feed unavailable (no data or stale) — agent falls back to simulated prices.
+      // Run `pnpm oracle:activate-fallback` once to suppress this by enabling the
+      // contract's built-in hardcoded fallback price.
+      const msg = error instanceof Error ? error.message.split('\n')[0].slice(0, 120) : String(error);
+      console.warn(`[oracle] ${feed} price unavailable (simulated fallback active): ${msg}`);
       return null;
     }
   }

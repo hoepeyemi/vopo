@@ -131,7 +131,7 @@ export function useDepositToVault() {
   } = useWaitForTransactionReceipt({
     hash: approveHash,
     timeout: 60_000, // 60 second timeout
-    pollingInterval: 3_000, // Poll every 3 seconds
+    pollingInterval: 8_000, // Poll every 8 seconds (public RPC rate-limit headroom)
     confirmations: 1, // Wait for 1 confirmation
     query: {
       enabled: !!approveHash,
@@ -147,7 +147,7 @@ export function useDepositToVault() {
   } = useWaitForTransactionReceipt({
     hash: depositHash,
     timeout: 60_000, // 60 second timeout
-    pollingInterval: 3_000, // Poll every 3 seconds
+    pollingInterval: 8_000, // Poll every 8 seconds (public RPC rate-limit headroom)
     confirmations: 1, // Wait for 1 confirmation
     query: {
       enabled: !!depositHash,

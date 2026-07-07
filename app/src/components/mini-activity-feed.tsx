@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 
 interface ActivityItem {
@@ -29,7 +29,11 @@ const ACTIVITY_MESSAGES = [
 
 export function MiniActivityFeed({ className }: { className?: string }) {
   const [activities, setActivities] = useState<ActivityItem[]>([])
-  const [messageIndex, setMessageIndex] = useState(0)
+  // Use a ref so the interval doesn't need to re-create itself every tick.
+  // Putting messageIndex in state + dep array caused the effect to teardown and
+  // re-schedule after every tick, producing unnecessary re-renders and eventually
+  // triggering React's maximum update depth guard in Strict Mode.
+  const messageIndexRef = useRef(0)
 
   // Generate initial activities (newest first)
   useEffect(() => {
@@ -48,31 +52,33 @@ export function MiniActivityFeed({ className }: { className?: string }) {
     }
 
     setActivities(initial)
-    setMessageIndex(3)
+    messageIndexRef.current = 3
   }, [])
 
-  // Add new activity periodically
+  // Add new activity periodically — stable interval, no state dep.
   useEffect(() => {
-    const interval = setInterval(() => {
-      const msg = ACTIVITY_MESSAGES[messageIndex % ACTIVITY_MESSAGES.length]
+    const schedule = () => {
+      const delay = 2500 + Math.random() * 1500
+      const timer = setTimeout(() => {
+        const msg = ACTIVITY_MESSAGES[messageIndexRef.current % ACTIVITY_MESSAGES.length]
+        messageIndexRef.current += 1
+        setActivities(prev => {
+          const newActivity: ActivityItem = {
+            id: Date.now(),
+            time: 'now',
+            message: msg.message,
+            type: msg.type,
+          }
+          return [newActivity, ...prev.slice(0, 2)]
+        })
+        schedule()
+      }, delay)
+      return timer
+    }
 
-      setActivities(prev => {
-        const newActivity: ActivityItem = {
-          id: Date.now(),
-          time: 'now',
-          message: msg.message,
-          type: msg.type,
-        }
-
-        // Keep only last 3
-        return [newActivity, ...prev.slice(0, 2)]
-      })
-
-      setMessageIndex(prev => prev + 1)
-    }, 2500 + Math.random() * 1500)
-
-    return () => clearInterval(interval)
-  }, [messageIndex])
+    const timer = schedule()
+    return () => clearTimeout(timer)
+  }, [])
 
   // Update times based on actual timestamps
   useEffect(() => {

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "next/navigation"
 import { useChainId } from "wagmi"
 import { ArrowLeft, ExternalLink, Shield, CircleAlert, Loader2 } from "lucide-react"
@@ -25,6 +25,11 @@ function InvoiceDetailContent() {
   const contractAddress = getInvoiceNFTAddress(chainId)
   const [showDeposit, setShowDeposit] = useState(false)
   const [pendingDeposit, setPendingDeposit] = useState<{ principal: string; strategy: number } | null>(null)
+  // Guard so the deposit-success toast fires exactly once per deposit flow.
+  // isDepositSuccess stays true for the lifetime of the component after a tx confirms;
+  // without this, every re-render (including those triggered by refetchDeposit) would
+  // re-run the effect and show the toast again.
+  const depositSuccessHandled = useRef(false)
   const tokenId = useMemo(() => {
     const raw = params?.tokenId
     const parsed = raw ? Number(raw) : NaN
@@ -59,16 +64,20 @@ function InvoiceDetailContent() {
   }, [isApproveSuccess, pendingDeposit, depositToVault, tokenId])
 
   useEffect(() => {
-    if (isDepositSuccess) {
-      toast.success("Invoice deposited for yield", {
-        description: "The invoice is now active in the yield vault.",
-      })
-      setShowDeposit(false)
-      setPendingDeposit(null)
-      resetApprove()
-      refetchDeposit()
-    }
-  }, [isDepositSuccess, resetApprove, refetchDeposit])
+    if (!isDepositSuccess || depositSuccessHandled.current) return
+    depositSuccessHandled.current = true
+    toast.success("Invoice deposited for yield", {
+      description: "The invoice is now active in the yield vault.",
+    })
+    setShowDeposit(false)
+    setPendingDeposit(null)
+    resetApprove()
+    refetchDeposit()
+  // resetApprove and refetchDeposit are intentionally excluded: they are unstable
+  // references (new function objects each render) and are called only once via the
+  // ref guard above, so stale-closure risk is zero.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDepositSuccess])
 
   const handleDeposit = (principal: string, selectedStrategy: number) => {
     if (tokenId === undefined) return
@@ -240,7 +249,7 @@ function InvoiceDetailContent() {
                   </Button>
                 </Link>
                 <a
-                  href={`https://explorer.mantle.xyz/address/${contractAddress}`}
+                  href={`https://explorer.sepolia.mantle.xyz/token/${contractAddress}/instance/${tokenId}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-2 rounded border border-[#1f1f1f] px-4 py-2 text-sm text-[#d6d6d6] hover:border-[#10b981]/40 hover:text-white transition-colors"

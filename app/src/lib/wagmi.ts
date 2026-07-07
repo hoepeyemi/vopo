@@ -78,6 +78,12 @@ export const config = createConfig({
     ...(isTestnet ? testnetChains : mainnetChains),
     ...(isDev ? devChains : []),
   ],
+  // Poll every 12s instead of the default 4s. Mantle Sepolia's public RPC
+  // rate-limits aggressive polling clients (429). Multicall batches all
+  // useReadContract calls in a single render into one eth_call, dramatically
+  // reducing request volume.
+  pollingInterval: 12_000,
+  batch: { multicall: true },
   connectors: [
     injected({ shimDisconnect: true }),
     walletConnect({
