@@ -44,8 +44,11 @@ export function useAgentWebSocket() {
     const wsUrl = process.env.NEXT_PUBLIC_AGENT_WS_URL
     if (!wsUrl) return
 
+    const token = process.env.NEXT_PUBLIC_WS_AUTH_TOKEN
+    const url = token ? `${wsUrl}?token=${token}` : wsUrl
+
     setStatus('connecting')
-    const ws = new WebSocket(wsUrl)
+    const ws = new WebSocket(url)
     wsRef.current = ws
 
     ws.onopen = () => {

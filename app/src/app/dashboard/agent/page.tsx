@@ -128,7 +128,8 @@ export default function AgentPage() {
           <div className="p-4 text-[12px]">
             <LiveAgentLog
               maxEntries={8}
-              liveEntries={wsStatus === 'connected' ? logEntries : undefined}
+              liveEntries={logEntries}
+              isConnected={wsStatus === 'connected'}
             />
           </div>
         </div>
