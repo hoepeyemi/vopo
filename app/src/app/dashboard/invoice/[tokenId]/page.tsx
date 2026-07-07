@@ -249,7 +249,7 @@ function InvoiceDetailContent() {
                   </Button>
                 </Link>
                 <a
-                  href={`https://explorer.sepolia.mantle.xyz/token/${contractAddress}/instance/${tokenId}`}
+                  href={`https://sepolia.mantlescan.xyz/nft/${contractAddress}/${tokenId}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-2 rounded border border-[#1f1f1f] px-4 py-2 text-sm text-[#d6d6d6] hover:border-[#10b981]/40 hover:text-white transition-colors"
