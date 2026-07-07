@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAccount } from "wagmi"
 import { Switch } from "@/components/ui/switch"
 import { StatusBar } from "@/components/ui/status-bar"
@@ -15,13 +15,32 @@ import { formatUnits } from "viem"
 export default function AgentPage() {
   const [autoExecute, setAutoExecute] = useState(true)
   const [memoryView, setMemoryView] = useState<'feed' | 'graph'>('graph')
+  // totalYieldGenerated on the contract only increments on withdrawal — it reads
+  // 0 while yield is actively accruing. Fetch live accruedYield per deposit via
+  // the agent API, same approach as the dashboard page.
+  const [liveAccruedYield, setLiveAccruedYield] = useState(0)
   const { address, isConnected } = useAccount()
-  const { activeDepositsCount, totalYield } = useYieldVault()
+  const { activeDepositsCount } = useYieldVault()
   const { status: wsStatus, memoryEvents, logEntries } = useAgentWebSocket()
 
-  const yieldFormatted = (() => {
-    try { return Number(formatUnits(BigInt(totalYield || 0), 18)) } catch { return 0 }
-  })()
+  useEffect(() => {
+    if (!isConnected) return
+    fetch('/api/invoices?active=true', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) return
+        let total = 0
+        for (const inv of data.data.invoices ?? []) {
+          if (inv.deposit?.accruedYield) {
+            try { total += Number(formatUnits(BigInt(inv.deposit.accruedYield), 18)) } catch {}
+          }
+        }
+        setLiveAccruedYield(total)
+      })
+      .catch(() => {})
+  }, [isConnected])
+
+  const yieldFormatted = liveAccruedYield
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] bg-grid noise-overlay scan-line pb-8">
