@@ -142,8 +142,11 @@ export default function Dashboard() {
     inv.id.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const tvlFormatted = Number(formatUnits(BigInt(tvl || 0), 18))
-  const yieldFormatted = Number(formatUnits(BigInt(totalYield || 0), 18))
+  // useYieldVault already returns formatUnits strings — parsing them again via
+  // BigInt() throws a SyntaxError on decimal strings (e.g. "10000.0"), so use
+  // Number() directly on the pre-formatted value.
+  const tvlFormatted = Number(tvl || 0)
+  const yieldFormatted = Number(totalYield || 0)
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] bg-grid noise-overlay scan-line pb-8">
