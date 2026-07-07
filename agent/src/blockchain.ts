@@ -225,7 +225,10 @@ export class BlockchainService {
         paymentProbability: Number(invoice.paymentProbability),
       };
     } catch (error) {
-      console.error(`Error fetching invoice ${tokenId}:`, error);
+      const msg = error instanceof Error ? error.message : String(error);
+      if (!msg.includes('missing revert data') && !msg.includes('could not decode') && !msg.includes('CALL_EXCEPTION')) {
+        console.warn(`[blockchain] getInvoice(${tokenId}) unexpected error: ${msg.split('\n')[0].slice(0, 120)}`);
+      }
       return null;
     }
   }
@@ -335,8 +338,15 @@ export class BlockchainService {
       }
       return { success: true, txHash: receipt.hash };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`Error recording decision for ${tokenId}:`, errorMessage);
+      const errorMessage = error instanceof Error ? error.message.split('\n')[0].slice(0, 160) : 'Unknown error';
+      // "Decision cooldown not elapsed" is an expected contract guard — the agent
+      // checks lastExecutionTime before calling, but race conditions can still
+      // trigger it. Demote to warn so it doesn't spam the error log.
+      if (errorMessage.includes('Decision cooldown not elapsed')) {
+        console.warn(`[blockchain] recordDecision(${tokenId}): on-chain cooldown still active`);
+      } else {
+        console.error(`[blockchain] recordDecision(${tokenId}) failed: ${errorMessage}`);
+      }
       return { success: false, error: errorMessage };
     }
   }

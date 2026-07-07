@@ -350,7 +350,7 @@ export function shouldChangeStrategy(
   current: Strategy,
   recommended: Strategy,
   confidence: number,
-  minConfidence: number = 70
+  minConfidence: number = 60
 ): boolean {
   // Don't change if same strategy
   if (current === recommended) return false;
