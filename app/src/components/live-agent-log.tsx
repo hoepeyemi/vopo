@@ -52,14 +52,16 @@ export function LiveAgentLog({
             {entry.time}
           </span>
           <span className={cn(
-            'flex-1 text-[11px]',
+            'flex-1 text-[11px] truncate',
             entry.entryType === 'success' && 'text-[#10b981]',
             entry.entryType === 'warning' && 'text-[#f59e0b]',
             entry.entryType === 'action' && 'text-[#8b5cf6]',
             entry.entryType === 'memory' && 'text-[#60a5fa]',
             entry.entryType === 'info' && 'text-[#e5e5e5]'
-          )}>
-            {entry.message}
+          )}
+            title={entry.message}
+          >
+            {entry.message.length > 80 ? entry.message.slice(0, 80) + '…' : entry.message}
           </span>
         </div>
       ))}

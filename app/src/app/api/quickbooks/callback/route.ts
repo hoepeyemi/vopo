@@ -17,11 +17,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard/mint?quickbooks=demo", appUrl))
   }
 
+  // Intuit sends ?error=... when the user denies or something goes wrong on their side
+  const intuitError = searchParams.get("error")
+  if (intuitError) {
+    const desc = searchParams.get("error_description") ?? "(no description)"
+    console.error(`[QuickBooks callback] Intuit returned error: ${intuitError} — ${desc}`)
+    return NextResponse.redirect(new URL("/dashboard/mint?error=quickbooks_auth_failed", appUrl))
+  }
+
   if (!code || !realmId) {
+    console.error("[QuickBooks callback] Missing code or realmId", { code: !!code, realmId: !!realmId })
     return NextResponse.redirect(new URL("/dashboard/mint?error=quickbooks_auth_failed", appUrl))
   }
 
   if (stateCookie && state && stateCookie !== state) {
+    console.error("[QuickBooks callback] State mismatch", { stateCookie, state })
     return NextResponse.redirect(new URL("/dashboard/mint?error=quickbooks_auth_failed", appUrl))
   }
 
@@ -32,7 +42,8 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(new URL("/dashboard/mint?quickbooks=success", appUrl))
     response.cookies.delete("quickbooks_oauth_state")
     return response
-  } catch {
+  } catch (err) {
+    console.error("[QuickBooks callback] token exchange failed:", err)
     return NextResponse.redirect(new URL("/dashboard/mint?error=quickbooks_auth_failed", appUrl))
   }
 }

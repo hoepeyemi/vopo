@@ -5,10 +5,8 @@ const QUICKBOOKS_BASE_URL = process.env.QUICKBOOKS_ENVIRONMENT === "production"
   ? "https://quickbooks.api.intuit.com"
   : "https://sandbox-quickbooks.api.intuit.com"
 
-const OAUTH_BASE_URL = "https://appcenter.intuit.com/connect/oauth2"
-
 // OAuth endpoints
-export const QUICKBOOKS_AUTH_URL = `${OAUTH_BASE_URL}/v1/tokens/bearer`
+export const QUICKBOOKS_AUTH_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
 export const QUICKBOOKS_AUTHORIZE_URL = "https://appcenter.intuit.com/connect/oauth2"
 
 // Scopes required for invoice access
@@ -104,20 +102,28 @@ export async function exchangeCodeForTokens(
     }),
   })
 
+  const responseText = await response.text()
+  console.log(`[QB token exchange] status=${response.status} url=${response.url} redirected=${response.redirected}`)
+  console.log(`[QB token exchange] body=${responseText.slice(0, 300)}`)
+
   if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Token exchange failed: ${error}`)
+    throw new Error(`Token exchange failed (${response.status}): ${responseText}`)
   }
 
-  const data = await response.json()
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(responseText)
+  } catch {
+    throw new Error(`Token exchange returned non-JSON (${response.status}): ${responseText.slice(0, 200)}`)
+  }
 
   return {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token,
-    expiresIn: data.expires_in,
-    tokenType: data.token_type,
+    accessToken: data.access_token as string,
+    refreshToken: data.refresh_token as string,
+    expiresIn: data.expires_in as number,
+    tokenType: data.token_type as string,
     realmId,
-    expiresAt: Date.now() + data.expires_in * 1000,
+    expiresAt: Date.now() + (data.expires_in as number) * 1000,
   }
 }
 
@@ -175,16 +181,7 @@ export async function fetchInvoices(
 ): Promise<QuickBooksInvoice[]> {
   const { status = "open", limit = 100 } = options || {}
 
-  // Build query
-  let query = `SELECT * FROM Invoice`
-
-  if (status === "open") {
-    query += ` WHERE Balance > 0`
-  } else if (status === "paid") {
-    query += ` WHERE Balance = 0`
-  }
-
-  query += ` MAXRESULTS ${limit}`
+  const query = `SELECT * FROM Invoice MAXRESULTS ${limit}`
 
   const encodedQuery = encodeURIComponent(query)
   const url = `${QUICKBOOKS_BASE_URL}/v3/company/${realmId}/query?query=${encodedQuery}`
@@ -202,7 +199,11 @@ export async function fetchInvoices(
   }
 
   const data = await response.json()
-  return data.QueryResponse?.Invoice || []
+  const all: QuickBooksInvoice[] = data.QueryResponse?.Invoice || []
+
+  if (status === "open") return all.filter((inv) => inv.Balance > 0)
+  if (status === "paid") return all.filter((inv) => inv.Balance === 0)
+  return all
 }
 
 // Fetch a single invoice by ID
