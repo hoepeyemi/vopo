@@ -2,7 +2,7 @@
 // Qwen-Max: complex reasoning & explanations
 // Qwen-Turbo: lightweight memory maintenance (condense / evaluate)
 
-import { AnalysisResult, Strategy, AgentThought } from './types.js';
+import { AnalysisResult, Strategy } from './types.js';
 import { STRATEGY_NAMES } from './constants.js';
 
 const QWEN_BASE_URL =
@@ -11,6 +11,9 @@ const QWEN_MAX_MODEL = process.env.QWEN_MAX_MODEL || 'qwen-max';
 const QWEN_TURBO_MODEL = process.env.QWEN_TURBO_MODEL || 'qwen-turbo';
 const TIMEOUT_MS = 30_000;
 const MAINTENANCE_TIMEOUT_MS = 20_000;
+
+const QWEN_EMBED_MODEL = process.env.QWEN_EMBED_MODEL || 'text-embedding-v2';
+const QWEN_EMBED_DIMS = 1536; // text-embedding-v2 output dimension
 
 interface QwenMessage {
   role: 'system' | 'user' | 'assistant';
@@ -21,6 +24,13 @@ interface QwenResponse {
   choices: Array<{ message: { content: string } }>;
   error?: { message: string };
 }
+
+interface QwenEmbedResponse {
+  data: Array<{ index: number; embedding: number[] }>;
+  error?: { message: string };
+}
+
+export { QWEN_EMBED_DIMS };
 
 export class LLMService {
   private apiKey: string | null = null;
@@ -232,47 +242,44 @@ Explain why we are ${analysis.shouldAct ? 'changing to' : 'keeping'} ${STRATEGY_
     );
   }
 
-  async generateThinkingStream(analysis: AnalysisResult): Promise<AgentThought[]> {
-    const thoughts: AgentThought[] = [];
-    const now = Date.now();
+  // ── Embedding path (text-embedding-v2 — for pgvector semantic search) ───────
 
-    thoughts.push({
-      type: 'thinking',
-      tokenId: analysis.tokenId,
-      message: `Analyzing Invoice #${analysis.tokenId.slice(0, 8)}...`,
-      timestamp: now,
-      data: { step: 1, total: 4 },
-    });
+  /**
+   * Convert text to a 1536-dimensional vector using Qwen's embedding API.
+   * Returns null when the API key is absent or the call fails — callers must
+   * fall back to TF-IDF search in that case.
+   */
+  async embedText(text: string): Promise<number[] | null> {
+    if (!this.enabled) return null;
 
-    thoughts.push({
-      type: 'analysis',
-      tokenId: analysis.tokenId,
-      message: `Risk: ${analysis.riskScore}/100 | Payment probability: ${analysis.paymentProbability}%`,
-      timestamp: now + 500,
-      data: { riskScore: analysis.riskScore, paymentProbability: analysis.paymentProbability },
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
 
-    thoughts.push({
-      type: 'analysis',
-      tokenId: analysis.tokenId,
-      message: `Strategy ${STRATEGY_NAMES[analysis.currentStrategy]} → ${STRATEGY_NAMES[analysis.recommendedStrategy]} (${analysis.confidence}% confidence)`,
-      timestamp: now + 1000,
-      data: {
-        currentStrategy: STRATEGY_NAMES[analysis.currentStrategy],
-        recommendedStrategy: STRATEGY_NAMES[analysis.recommendedStrategy],
-        confidence: analysis.confidence,
-      },
-    });
+    try {
+      const resp = await fetch(`${QWEN_BASE_URL}/embeddings`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model: QWEN_EMBED_MODEL, input: text }),
+        signal: controller.signal,
+      });
 
-    thoughts.push({
-      type: 'decision',
-      tokenId: analysis.tokenId,
-      message: await this.generateExplanation(analysis),
-      timestamp: now + 1500,
-      data: { shouldAct: analysis.shouldAct, strategy: analysis.recommendedStrategy },
-    });
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => '');
+        throw new Error(`Qwen embed API ${resp.status}: ${body.slice(0, 120)}`);
+      }
 
-    return thoughts;
+      const data = (await resp.json()) as QwenEmbedResponse;
+      if (data.error) throw new Error(data.error.message);
+      return data.data[0]?.embedding ?? null;
+    } catch (err) {
+      console.warn('[LLM] embedText failed, TF-IDF fallback active:', (err as Error).message.split('\n')[0].slice(0, 80));
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   isEnabled(): boolean {

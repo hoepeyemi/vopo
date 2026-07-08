@@ -22,13 +22,10 @@ async function withRetry<T>(
   operationName: string,
   config: RetryConfig = DEFAULT_RETRY_CONFIG
 ): Promise<T> {
-  let lastError: Error | null = null;
-
   for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
     try {
       return await operation();
     } catch (error) {
-      lastError = error as Error;
       const isRetryable = isRetryableError(error);
 
       if (attempt === config.maxAttempts || !isRetryable) {
@@ -45,7 +42,8 @@ async function withRetry<T>(
     }
   }
 
-  throw lastError;
+  // Unreachable: the loop always returns or throws before completing.
+  throw new Error(`${operationName}: exhausted ${config.maxAttempts} attempts`);
 }
 
 function isRetryableError(error: unknown): boolean {
@@ -88,7 +86,6 @@ const YIELD_VAULT_ABI = [
 const AGENT_ROUTER_ABI = [
   'function recordDecision(uint256 tokenId, uint8 strategy, uint256 confidence, string reasoning) returns (uint256)',
   'function getLatestDecision(uint256 tokenId) view returns (tuple(uint256 tokenId, uint8 recommendedStrategy, string reasoning, uint256 confidence, uint256 timestamp, bool executed))',
-  'function needsAnalysis(uint256 tokenId, uint256 maxAge) view returns (bool)',
   'function isAgentAuthorized(address agent) view returns (bool)',
   'event DecisionRecorded(uint256 indexed tokenId, uint8 strategy, uint256 confidence, string reasoning)',
   'event DecisionExecuted(uint256 indexed tokenId, uint8 strategy, address indexed executor)',
@@ -110,14 +107,6 @@ const PYTH_ORACLE_ABI = [
   'function getNativeUsdPrice() view returns (int64)',
 ];
 
-// Aave V3 Yield Source ABI (for production)
-const AAVE_YIELD_ABI = [
-  'function getCurrentAPY(address asset) view returns (uint256)',
-  'function getPosition(uint256 tokenId) view returns (address asset, uint256 principal, uint256 currentValue, uint256 depositTime)',
-  'function deposit(uint256 tokenId, address asset, uint256 amount)',
-  'function withdraw(uint256 tokenId, address to) returns (uint256 totalAmount, uint256 yieldAmount)',
-];
-
 export interface ContractAddresses {
   invoiceNFT: string;
   yieldVault: string;
@@ -125,7 +114,6 @@ export interface ContractAddresses {
   // Oracle: use pythOracle in production, mockOracle for local dev
   mockOracle?: string;
   pythOracle?: string;
-  aaveYieldSource?: string;
 }
 
 export class BlockchainService {
@@ -137,17 +125,18 @@ export class BlockchainService {
   private agentRouter: ethers.Contract;
   private mockOracle: ethers.Contract | null = null;
   private pythOracle: ethers.Contract | null = null;
-  private aaveYieldSource: ethers.Contract | null = null;
-
-  // Real APY cache (fetched from Aave V3)
-  private cachedAPY: { [strategy: number]: number } = {};
-  private apyCacheTime = 0;
-  private APY_CACHE_DURATION = 60000; // 1 minute
 
   // Market monitoring
-  private priceHistory: { timestamp: number; ethPrice: number; nativePrice: number }[] = [];
+  private priceHistory: { timestamp: number; ethPrice: number; nativePrice: number; synthetic: boolean }[] = [];
   private lastMarketConditions: MarketConditions | null = null;
   private PRICE_HISTORY_DURATION = 4 * 60 * 60 * 1000; // 4 hours
+
+  // Synthetic price for testnet: keeps market regime detection alive when Pyth
+  // is unavailable. Uses a random walk (±0.4 % per 30 s cycle) so regime
+  // transitions (bull / bear / volatile) still occur and are visible in the UI.
+  // The real ethPrice field on MarketConditions stays null — the UI shows
+  // "Simulated mode" while regime logic sees plausible movement.
+  private syntheticBasePrice = 2500 + Math.random() * 500; // USD, randomised at startup
 
   constructor(rpcUrl: string, addresses: ContractAddresses, privateKey?: string) {
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -173,20 +162,6 @@ export class BlockchainService {
       console.log('Using Mock Oracle (local dev)');
     }
 
-    // Yield source: Aave V3 for real yield
-    if (addresses.aaveYieldSource) {
-      this.aaveYieldSource = new ethers.Contract(addresses.aaveYieldSource, AAVE_YIELD_ABI, signerOrProvider);
-      console.log('Using Aave V3 for real yield data');
-    }
-  }
-
-  /// Check if using production oracles
-  isUsingRealOracle(): boolean {
-    return this.pythOracle !== null;
-  }
-
-  isUsingRealYield(): boolean {
-    return this.aaveYieldSource !== null;
   }
 
   async getActiveInvoices(): Promise<{ ids: string[]; error?: string }> {
@@ -272,44 +247,6 @@ export class BlockchainService {
     }
   }
 
-  async getRiskData(tokenId: string): Promise<{ riskScore: number; paymentProbability: number }> {
-    // Use whichever oracle is available (prefer Pyth)
-    const oracle = this.pythOracle || this.mockOracle;
-    if (!oracle) {
-      return { riskScore: 50, paymentProbability: 50 };
-    }
-
-    try {
-      const [riskScore, paymentProbability] = await Promise.all([
-        oracle.getRiskScore(tokenId),
-        oracle.getPaymentProbability(tokenId),
-      ]);
-
-      return {
-        riskScore: Number(riskScore),
-        paymentProbability: Number(paymentProbability),
-      };
-    } catch (error) {
-      console.error(`Error fetching risk data for ${tokenId}:`, error);
-      return { riskScore: 50, paymentProbability: 50 };
-    }
-  }
-
-  async simulateRiskAssessment(tokenId: string): Promise<boolean> {
-    if (!this.signer || !this.mockOracle) {
-      return false;
-    }
-
-    try {
-      const tx = await this.mockOracle.simulateRiskAssessment(tokenId);
-      await tx.wait();
-      return true;
-    } catch (error) {
-      console.error(`Error simulating risk for ${tokenId}:`, error);
-      return false;
-    }
-  }
-
   async recordDecision(
     tokenId: string,
     strategy: Strategy,
@@ -351,17 +288,6 @@ export class BlockchainService {
     }
   }
 
-  async needsAnalysis(tokenId: string, maxAgeSeconds: number = 3600): Promise<boolean> {
-    try {
-      return await this.agentRouter.needsAnalysis(tokenId, maxAgeSeconds);
-    } catch (error) {
-      console.error(`Error checking analysis need for ${tokenId}:`, error);
-      // Return false on error to avoid triggering unnecessary analysis when we can't verify
-      // This prevents infinite retry loops when contract is unavailable
-      return false;
-    }
-  }
-
   async isAgentAuthorized(address: string): Promise<boolean> {
     try {
       return await this.agentRouter.isAgentAuthorized(address);
@@ -376,59 +302,91 @@ export class BlockchainService {
     return (this.signer as ethers.Wallet).address;
   }
 
-  // Event listeners disabled - public RPCs don't support eth_newFilter.
-  // The agent polls every 30s instead, which is more reliable.
-  onDecisionRecorded(_callback: (tokenId: string, strategy: Strategy, confidence: number) => void): void {
-    // No-op: polling handles this
+  destroy(): void {
+    if (this.eventPollHandle) {
+      clearInterval(this.eventPollHandle);
+      this.eventPollHandle = null;
+    }
   }
 
-  onDecisionExecuted(_callback: (tokenId: string, strategy: Strategy) => void): void {
-    // No-op: polling handles this
+  // Subscribe to on-chain events via eth_getLogs polling instead of
+  // eth_newFilter/eth_getFilterChanges. Many public RPCs (thirdweb, Alchemy
+  // free tier) reject filter-based subscriptions with "filter not found" and
+  // ethers v6's FilterId subscriber leaks console.log("@TODO", error) on every
+  // failed poll. One shared setInterval calls getLogs for all registered events
+  // in a single loop — no per-event timers, no duplicate block fetches.
+  private eventPollHandle: ReturnType<typeof setInterval> | null = null;
+  private lastEventBlock = 0;
+  // topic0 → handler pairs registered before the loop starts
+  private readonly eventHandlers: Array<{ topic0: string; handler: (log: ethers.Log) => void }> = [];
+
+  onDecisionRecorded(callback: (tokenId: string, strategy: Strategy, confidence: number) => void): void {
+    const topic0 = this.agentRouter.interface.getEvent('DecisionRecorded')!.topicHash;
+    this.eventHandlers.push({
+      topic0,
+      handler: (log) => {
+        const parsed = this.agentRouter.interface.parseLog(log);
+        if (!parsed) return;
+        callback(parsed.args[0].toString(), Number(parsed.args[1]) as Strategy, Number(parsed.args[2]));
+      },
+    });
+    this._ensureEventLoop();
   }
 
-  /// Get real APY for a strategy (from Aave V3 if available, otherwise hardcoded)
-  async getRealAPY(strategy: Strategy): Promise<number> {
-    // Return cached if fresh
-    if (Date.now() - this.apyCacheTime < this.APY_CACHE_DURATION && this.cachedAPY[strategy] !== undefined) {
-      return this.cachedAPY[strategy];
-    }
+  onDecisionExecuted(callback: (tokenId: string, strategy: Strategy) => void): void {
+    const topic0 = this.agentRouter.interface.getEvent('DecisionExecuted')!.topicHash;
+    this.eventHandlers.push({
+      topic0,
+      handler: (log) => {
+        const parsed = this.agentRouter.interface.parseLog(log);
+        if (!parsed) return;
+        callback(parsed.args[0].toString(), Number(parsed.args[1]) as Strategy);
+      },
+    });
+    this._ensureEventLoop();
+  }
 
-    // Hardcoded fallback APYs (basis points, 100 = 1%)
-    const fallbackAPY: { [key: number]: number } = {
-      0: 0,    // Hold: 0%
-      1: 350,  // Conservative: 3.5%
-      2: 700,  // Aggressive: 7%
-    };
+  private _ensureEventLoop(): void {
+    if (this.eventPollHandle) return; // loop already running
 
-    if (!this.aaveYieldSource) {
-      return fallbackAPY[strategy] || 0;
-    }
+    this.eventPollHandle = setInterval(async () => {
+      if (this.eventHandlers.length === 0) return;
+      try {
+        const latestBlock = await this.provider.getBlockNumber();
+        const fromBlock = this.lastEventBlock > 0 ? this.lastEventBlock + 1 : latestBlock;
+        if (fromBlock > latestBlock) return;
 
-    try {
-      // Fetch real APY from Aave V3 for USDC/USDT (common stablecoins)
-      // In production, this would use the chain-specific USDC address
-      const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'; // USDC on Ethereum (overridden per chain)
-      const apy = await this.aaveYieldSource.getCurrentAPY(USDC_ADDRESS);
+        // Fetch logs for all registered topic0s in one getLogs call.
+        // contract.target is the synchronous address string in ethers v6.
+        const logs = await this.provider.getLogs({
+          address: this.agentRouter.target as string,
+          topics: [this.eventHandlers.map((e) => e.topic0)],
+          fromBlock,
+          toBlock: latestBlock,
+        });
 
-      // Scale based on strategy (Conservative = base APY, Aggressive = 2x)
-      const baseAPY = Number(apy);
+        this.lastEventBlock = latestBlock;
 
-      if (strategy === 0) {
-        this.cachedAPY[0] = 0;
-      } else if (strategy === 1) {
-        this.cachedAPY[1] = baseAPY;
-      } else {
-        this.cachedAPY[2] = Math.floor(baseAPY * 2); // Aggressive gets 2x (with more risk)
+        for (const log of logs) {
+          for (const { topic0, handler } of this.eventHandlers) {
+            if (log.topics[0] === topic0) {
+              try { handler(log); } catch { /* malformed log — skip */ }
+            }
+          }
+        }
+      } catch {
+        // RPC hiccup — the 30s analysis loop is the authoritative signal
       }
+    }, 60_000);
+  }
 
-      this.apyCacheTime = Date.now();
-      console.log(`Real APY fetched from Aave V3: ${baseAPY} basis points`);
-
-      return this.cachedAPY[strategy] || fallbackAPY[strategy];
-    } catch (error) {
-      console.error('Error fetching real APY, using fallback:', error);
-      return fallbackAPY[strategy] || 0;
-    }
+  // Random-walk synthetic price used for regime tracking when Pyth is unavailable.
+  // ±0.4% per step biased slightly upward so simulated markets feel alive.
+  private getSyntheticTrackingPrice(): number {
+    const drift = 0.0002; // +0.02% per step (gentle upward bias)
+    const noise = (Math.random() - 0.5) * 0.008; // ±0.4%
+    this.syntheticBasePrice = Math.max(500, this.syntheticBasePrice * (1 + drift + noise));
+    return this.syntheticBasePrice;
   }
 
   /// Get real price from Pyth Oracle
@@ -454,37 +412,25 @@ export class BlockchainService {
     }
   }
 
-  /// Get data source info for transparency
-  getDataSourceInfo(): { oracle: string; yield: string } {
-    return {
-      oracle: this.pythOracle ? 'Pyth Network (Real-time)' : 'Mock Oracle (Simulated)',
-      yield: this.aaveYieldSource ? 'Aave V3 (Real DeFi)' : 'Simulated Yield',
-    };
-  }
-
   /// Monitor market conditions and detect volatility
   async getMarketConditions(): Promise<MarketConditions> {
     const now = Date.now();
 
-    // Get current prices
     const ethPrice = await this.getRealPrice('ETH');
     const nativePrice = await this.getRealPrice('NATIVE');
 
-    // Store price in history
-    if (ethPrice !== null) {
-      this.priceHistory.push({
-        timestamp: now,
-        ethPrice: ethPrice,
-        nativePrice: nativePrice || 0,
-      });
+    // Always push a price to history so regime detection receives data every cycle.
+    // When Pyth is unavailable (testnet) use a synthetic random-walk price that
+    // keeps market regimes alive in the UI. The ethPrice field on the returned
+    // conditions stays null — the UI correctly shows "Simulated mode".
+    // Each entry is tagged synthetic/real so calculatePriceChange can skip
+    // cross-type comparisons that would produce meaningless percentage swings
+    // when Pyth first becomes available after a synthetic-only session.
+    const usingReal = ethPrice !== null;
+    const trackingPrice = usingReal ? ethPrice! : this.getSyntheticTrackingPrice();
+    this.priceHistory.push({ timestamp: now, ethPrice: trackingPrice, nativePrice: nativePrice ?? 0, synthetic: !usingReal });
+    this.priceHistory = this.priceHistory.filter((p) => now - p.timestamp < this.PRICE_HISTORY_DURATION);
 
-      // Clean old entries
-      this.priceHistory = this.priceHistory.filter(
-        (p) => now - p.timestamp < this.PRICE_HISTORY_DURATION
-      );
-    }
-
-    // Calculate price change
     const priceChange = this.calculatePriceChange();
     const volatilityLevel = this.calculateVolatilityLevel(priceChange);
 
@@ -505,6 +451,9 @@ export class BlockchainService {
     const recent = this.priceHistory[this.priceHistory.length - 1];
     const oldest = this.priceHistory[0];
 
+    // Comparing a synthetic entry against a real one (or vice versa) would produce
+    // a meaningless large percentage swing. Return 0 so no false market alert fires.
+    if (recent.synthetic !== oldest.synthetic) return 0;
     if (oldest.ethPrice === 0) return 0;
 
     return ((recent.ethPrice - oldest.ethPrice) / oldest.ethPrice) * 100;
@@ -590,7 +539,4 @@ export class BlockchainService {
     }
   }
 
-  getLastMarketConditions(): MarketConditions | null {
-    return this.lastMarketConditions;
-  }
 }

@@ -10,6 +10,9 @@ import {
   applyRegimeAdjustment,
   getCurrentRegime,
   resetOptimizerState,
+  recordDecision as optimizerRecordDecision,
+  getLearningStats,
+  getRegimeStats,
 } from './optimizer.js';
 import {
   AgentConfig,
@@ -18,13 +21,15 @@ import {
   AnalysisResult,
   MarketConditions,
   MarketAlert,
+  InvoiceStatus,
 } from './types.js';
-import { STRATEGY_NAMES } from './constants.js';
+import { STRATEGY_NAMES, AGENT_THRESHOLDS, ANALYSIS_INTERVAL_MS } from './constants.js';
 import { MemorySystem } from './memory/index.js';
 
 // Derive meaningful risk metrics from invoice timing when the contract still
-// holds the default 50/50 mint values. The agent is authorized to write these
-// on-chain via updateRiskMetrics so the optimizer can make real decisions.
+// holds the default 50/50 mint values. updateRiskMetrics on InvoiceNFT is only
+// callable by the AgentRouter contract or oracle — not the agent wallet — so we
+// derive improved scores in-process so the optimizer has real data to work with.
 function deriveRiskMetrics(daysUntilDue: number): { riskScore: number; paymentProbability: number } {
   if (daysUntilDue >= 90) return { riskScore: 82, paymentProbability: 88 };
   if (daysUntilDue >= 60) return { riskScore: 76, paymentProbability: 82 };
@@ -55,6 +60,10 @@ export class VasmoAgent {
   // concurrent WS triggers and scheduled cycles.
   private readonly ANALYSIS_COOLDOWN_MS = 25 * 1000;
 
+  // Run outcome resolution every N cycles to avoid excess RPC calls
+  private cycleCount = 0;
+  private readonly OUTCOME_CHECK_EVERY_N_CYCLES = 5;
+
   private consecutiveFailures = 0;
   private readonly MAX_CONSECUTIVE_FAILURES = 3;
   private circuitBreakerOpen = false;
@@ -77,10 +86,10 @@ export class VasmoAgent {
     this.memory = new MemorySystem();
 
     this.config = {
-      minConfidence: 70,
-      analysisInterval: 30000,
+      minConfidence: AGENT_THRESHOLDS.MIN_CONFIDENCE,
+      analysisInterval: ANALYSIS_INTERVAL_MS,
       maxConcurrentAnalyses: 5,
-      autoExecute: true,
+      autoExecute: false, // caller must explicitly opt in; index.ts sets !!PRIVATE_KEY
       ...options.config,
     };
 
@@ -104,6 +113,10 @@ export class VasmoAgent {
     console.log('🤖 MemoriVault Agent starting...');
 
     this.ws.start();
+    this.ws.setStatusCallback(() => ({
+      running: this.isRunning,
+      connectedClients: this.ws.getConnectedClients(),
+    }));
 
     const agentAddress = this.blockchain.getAgentAddress();
     if (agentAddress) {
@@ -148,6 +161,7 @@ export class VasmoAgent {
       this.analysisLoop = null;
     }
     this.memory.stopMaintenance();
+    this.blockchain.destroy();
     this.ws.stop();
     this.isRunning = false;
     // Drain in-flight L2/L3 async writes before the process exits so no
@@ -383,6 +397,11 @@ export class VasmoAgent {
         data: { txCostUsd: txCost.costUsd, memoryStats: this.memory.stats() },
       });
 
+      this.cycleCount++;
+      if (this.cycleCount % this.OUTCOME_CHECK_EVERY_N_CYCLES === 0) {
+        await this.updatePendingOutcomes();
+      }
+
       this.consecutiveFailures = 0;
     } catch (error) {
       console.error('Error in analysis cycle:', error);
@@ -478,11 +497,11 @@ export class VasmoAgent {
         invoice.paymentProbability = derived.paymentProbability;
       }
 
-      let analysis = analyzeInvoice(invoice, deposit || undefined, currentTimestamp);
+      let analysis = analyzeInvoice(invoice, deposit || undefined, currentTimestamp, this.config.minConfidence);
       const originalStrategy = analysis.recommendedStrategy;
 
       analysis = applyMarketAdjustment(analysis, this.currentMarketConditions, this.currentMarketAlert);
-      analysis = applyRegimeAdjustment(analysis);
+      analysis = applyRegimeAdjustment(analysis, this.config.minConfidence);
       const wasAdjusted = originalStrategy !== analysis.recommendedStrategy;
 
       await this.delay(400);
@@ -645,6 +664,17 @@ export class VasmoAgent {
       });
 
       this.memory.recordDecision(tokenId, STRATEGY_NAMES[analysis.recommendedStrategy]);
+
+      // Feed the outcome into the optimizer's in-process learning store so
+      // pattern insights and decision history are populated for regime detection.
+      optimizerRecordDecision(
+        tokenId,
+        analysis.recommendedStrategy,
+        analysis.confidence,
+        analysis.riskScore,
+        analysis.daysUntilDue,
+        this.currentMarketConditions?.volatilityLevel ?? 'low',
+      );
     } else {
       this.ws.broadcastExecution(tokenId, false);
       this.broadcastThought({
@@ -668,16 +698,73 @@ export class VasmoAgent {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  async triggerAnalysis(tokenId: string): Promise<AnalysisResult | null> {
-    return this.analyzeInvoice(tokenId);
+  /**
+   * Resolve L2 episodes whose outcome is still 'pending' by checking the
+   * current on-chain invoice status. Runs every OUTCOME_CHECK_EVERY_N_CYCLES
+   * cycles so each invoice is confirmed without hammering the RPC on every tick.
+   *
+   * Outcome rules:
+   *   Paid / Defaulted / Cancelled → 'success' or 'suboptimal' based on strategy
+   *   Overdue + the executed strategy was Aggressive → 'suboptimal'
+   *   Otherwise → leave 'pending' until next check
+   */
+  private async updatePendingOutcomes(): Promise<void> {
+    const pending = this.memory.l2.getPendingOutcomes(10);
+    if (pending.length === 0) return;
+
+    let resolved = 0;
+    for (const episode of pending) {
+      try {
+        const invoice = await this.blockchain.getInvoice(episode.tokenId!);
+        if (!invoice) continue;
+
+        const now = Math.floor(Date.now() / 1000);
+        const daysUntilDue = Math.floor((invoice.dueDate - now) / (24 * 60 * 60));
+        const wasAggressive = episode.strategy === 'Aggressive';
+
+        let outcome: 'success' | 'suboptimal' | null = null;
+
+        if (invoice.status === InvoiceStatus.Paid) {
+          outcome = 'success';
+        } else if (invoice.status === InvoiceStatus.Defaulted) {
+          outcome = 'suboptimal';
+        } else if (invoice.status === InvoiceStatus.Cancelled) {
+          // Cancelled before payment — strategy couldn't be proven correct
+          outcome = 'suboptimal';
+        } else if (daysUntilDue < -7 && wasAggressive) {
+          // Over a week overdue with an aggressive strategy — likely a bad call
+          outcome = 'suboptimal';
+        }
+
+        if (outcome) {
+          this.memory.l2.updateOutcome(episode.id, outcome);
+          resolved++;
+          console.log(`🧠 [Memory:L2] Outcome resolved for invoice #${episode.tokenId}: ${outcome}`);
+        }
+      } catch {
+        // Transient RPC error — leave as pending, retry next check
+      }
+    }
+
+    if (resolved > 0) {
+      this.broadcastThought({
+        type: 'thinking',
+        tokenId: 'system',
+        message: `🧠 Resolved ${resolved} pending memory outcome(s) from on-chain invoice status`,
+        timestamp: Date.now(),
+        data: { resolved },
+      });
+    }
   }
 
-  getStatus(): { running: boolean; connectedClients: number; config: AgentConfig; memoryStats: ReturnType<MemorySystem['stats']> } {
+  getStatus() {
     return {
       running: this.isRunning,
       connectedClients: this.ws.getConnectedClients(),
       config: this.config,
       memoryStats: this.memory.stats(),
+      learning: getLearningStats(),
+      regime: getRegimeStats(),
     };
   }
 }

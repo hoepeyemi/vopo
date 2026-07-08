@@ -2,7 +2,7 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer, IncomingMessage, ServerResponse } from 'http';
-import { AgentThought, WebSocketMessage, AgentDecision, MemoryEventMessage } from './types.js';
+import { AgentThought, WebSocketMessage, MemoryEventMessage } from './types.js';
 
 // Heartbeat configuration
 const HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds
@@ -258,13 +258,6 @@ export class AgentWebSocket {
     });
   }
 
-  broadcastDecision(decision: AgentDecision): void {
-    this.broadcast({
-      type: 'decision',
-      payload: decision,
-    });
-  }
-
   broadcastExecution(tokenId: string, success: boolean, txHash?: string): void {
     this.broadcast({
       type: 'execution',
@@ -301,22 +294,5 @@ export class AgentWebSocket {
 
   getConnectedClients(): number {
     return this.clients.size;
-  }
-
-  // Get connection health info
-  getConnectionHealth(): { total: number; alive: number; stale: number } {
-    let alive = 0;
-    let stale = 0;
-    const now = Date.now();
-
-    this.clients.forEach((info) => {
-      if (info.isAlive && now - info.lastPong < CLIENT_TIMEOUT_MS) {
-        alive++;
-      } else {
-        stale++;
-      }
-    });
-
-    return { total: this.clients.size, alive, stale };
   }
 }

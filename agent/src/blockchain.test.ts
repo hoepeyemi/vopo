@@ -1,62 +1,55 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { BlockchainService } from './blockchain.js';
+import { MarketConditions } from './types.js';
 
-// Mock viem before importing BlockchainService
-vi.mock('viem', () => ({
-  createPublicClient: vi.fn(() => ({
-    readContract: vi.fn(),
-    getBlockNumber: vi.fn(() => Promise.resolve(BigInt(1000))),
-  })),
-  createWalletClient: vi.fn(() => ({
-    writeContract: vi.fn(),
-  })),
-  http: vi.fn(),
-  getContract: vi.fn(() => ({
-    read: {
-      getActiveInvoices: vi.fn(() => Promise.resolve([])),
-      getActiveDeposits: vi.fn(() => Promise.resolve([])),
-      needsAnalysis: vi.fn(() => Promise.resolve(false)),
-    },
-  })),
-}));
+// Use a non-routable address so the provider is constructed but never contacted
+const DUMMY_RPC = 'http://192.0.2.1:8545';
+const DUMMY_ADDRESSES = {
+  invoiceNFT: '0x1111111111111111111111111111111111111111',
+  yieldVault: '0x2222222222222222222222222222222222222222',
+  agentRouter: '0x3333333333333333333333333333333333333333',
+};
 
-describe('BlockchainService', () => {
-  describe('error handling', () => {
-    it('should return empty array with error info when getActiveInvoices fails', async () => {
-      // This tests that errors are properly caught and returned
-      // rather than throwing and crashing the agent
-      const mockError = new Error('RPC connection failed');
+function makeService() {
+  return new BlockchainService(DUMMY_RPC, DUMMY_ADDRESSES);
+}
 
-      // The actual implementation catches errors and returns { ids: [], error: message }
-      const result = { ids: [], error: mockError.message };
+function conditions(priceChange4h: number, volatilityLevel: MarketConditions['volatilityLevel'] = 'low'): MarketConditions {
+  return { ethPrice: 2000, nativePrice: null, priceChange4h, volatilityLevel, lastUpdated: Date.now() };
+}
 
-      expect(result.ids).toEqual([]);
-      expect(result.error).toBe('RPC connection failed');
-    });
+describe('BlockchainService.checkMarketAlert', () => {
+  let service: BlockchainService;
+  beforeEach(() => { service = makeService(); });
 
-    it('should return false when needsAnalysis encounters an error', async () => {
-      // needsAnalysis should return false on error to avoid triggering unnecessary work
-      const result = false; // This is what the implementation returns on error
-      expect(result).toBe(false);
-    });
+  it('returns null for price change below ±3%', () => {
+    expect(service.checkMarketAlert(conditions(0))).toBeNull();
+    expect(service.checkMarketAlert(conditions(2.9))).toBeNull();
+    expect(service.checkMarketAlert(conditions(-2.9))).toBeNull();
   });
 
-  describe('contract addresses', () => {
-    it('should validate contract addresses are not zero address', () => {
-      const zeroAddress = '0x0000000000000000000000000000000000000000';
-      const validAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
-
-      expect(zeroAddress).not.toBe(validAddress);
-      expect(validAddress.length).toBe(42);
-      expect(validAddress.startsWith('0x')).toBe(true);
-    });
+  it('returns info level for -3% to -5% drop', () => {
+    expect(service.checkMarketAlert(conditions(-3.5))?.level).toBe('info');
+    expect(service.checkMarketAlert(conditions(-4.9))?.level).toBe('info');
   });
-});
 
-describe('Strategy enum values', () => {
-  it('should have correct strategy values', () => {
-    // Strategy enum: Hold=0, Conservative=1, Aggressive=2
-    expect(0).toBe(0); // Hold
-    expect(1).toBe(1); // Conservative
-    expect(2).toBe(2); // Aggressive
+  it('returns warning level for -5% to -8% drop', () => {
+    expect(service.checkMarketAlert(conditions(-5))?.level).toBe('warning');
+    expect(service.checkMarketAlert(conditions(-7.9))?.level).toBe('warning');
+  });
+
+  it('returns critical level for drop beyond -8%', () => {
+    expect(service.checkMarketAlert(conditions(-8))?.level).toBe('critical');
+    expect(service.checkMarketAlert(conditions(-20))?.level).toBe('critical');
+  });
+
+  it('returns info level for +5% rally', () => {
+    expect(service.checkMarketAlert(conditions(5))?.level).toBe('info');
+    expect(service.checkMarketAlert(conditions(10))?.level).toBe('info');
+  });
+
+  it('critical alert recommendation instructs capital protection', () => {
+    const result = service.checkMarketAlert(conditions(-10));
+    expect(result?.recommendation).toMatch(/HOLD/i);
   });
 });

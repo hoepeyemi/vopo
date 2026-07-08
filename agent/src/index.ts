@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { VasmoAgent } from './agent.js';
 import { ContractAddresses } from './blockchain.js';
+import { AGENT_THRESHOLDS, ANALYSIS_INTERVAL_MS } from './constants.js';
 
 // Environment validation
 interface EnvValidation {
@@ -154,12 +155,10 @@ const ADDRESSES: ContractAddresses = {
   // Oracle: Pyth for production, MockOracle for local dev
   mockOracle: process.env.MOCK_ORACLE_ADDRESS,
   pythOracle: process.env.PYTH_ORACLE_ADDRESS || DEPLOYMENT_DEFAULTS.pythOracle,
-  // Yield source: Aave V3 for real DeFi yields
-  aaveYieldSource: process.env.AAVE_YIELD_ADDRESS || DEPLOYMENT_DEFAULTS.aaveYieldSource,
 };
 
 // Check if using production data sources
-const isProduction = !!ADDRESSES.pythOracle || !!ADDRESSES.aaveYieldSource;
+const isProduction = !!ADDRESSES.pythOracle;
 
 async function main() {
   const RPC_URL = await selectWorkingRpcUrl(MANTLE_SEPOLIA_RPC_FALLBACKS);
@@ -202,11 +201,11 @@ async function main() {
   console.log('');
   console.log('  Data Sources:');
   console.log(`  📊 Oracle: ${ADDRESSES.pythOracle ? '✅ Pyth Network (Real-time)' : '⚠️  Mock Oracle (Simulated)'}`);
-  console.log(`  💰 Yield: ${ADDRESSES.aaveYieldSource ? '✅ Aave V3 (Real DeFi)' : '⚠️  Simulated Yield'}`);
+  console.log(`  💰 Yield: ${ADDRESSES.pythOracle ? '✅ On-chain (Pyth-verified)' : '⚠️  Simulated Yield'}`);
   if (!isProduction) {
     console.log('');
     console.log('  ⚠️  Running with SIMULATED data for demo.');
-    console.log('  Set PYTH_ORACLE_ADDRESS and AAVE_YIELD_ADDRESS for production.');
+    console.log('  Set PYTH_ORACLE_ADDRESS for production price feeds.');
   }
   console.log('='.repeat(60));
 
@@ -223,10 +222,10 @@ async function main() {
     qwenApiKey: QWEN_API_KEY,
     wsPort: WS_PORT,
     config: {
-      minConfidence: 70,
-      analysisInterval: 30000, // 30 seconds
+      minConfidence: AGENT_THRESHOLDS.MIN_CONFIDENCE,
+      analysisInterval: ANALYSIS_INTERVAL_MS,
       maxConcurrentAnalyses: 5,
-      autoExecute: !!PRIVATE_KEY, // Only auto-execute if we have a key
+      autoExecute: !!PRIVATE_KEY,
     },
   });
 

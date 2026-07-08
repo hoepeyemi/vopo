@@ -16,10 +16,9 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { SemanticMemory } from './types.js';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const STORE_PATH = path.join(DATA_DIR, 'l3-semantic.json');
+const DEFAULT_DATA_DIR = path.resolve(process.cwd(), 'data');
 const MAX_RULES = 200;
-const DECAY_LAMBDA = 0.008;       // e-folding: ~125 days
+const DECAY_LAMBDA = 0.008;       // half-life ~87 days (e-folding ~125 days)
 const MS_PER_DAY = 86_400_000;
 const PRUNE_THRESHOLD = 0.12;    // composite score below this → prune candidate
 const BORDERLINE_BAND = 0.08;    // 0.12–0.20 → ask LLM before pruning
@@ -27,16 +26,18 @@ const BORDERLINE_BAND = 0.08;    // 0.12–0.20 → ask LLM before pruning
 export class L3SemanticMemory {
   private rules: SemanticMemory[] = [];
   private writeQueue: Promise<void> = Promise.resolve();
+  private readonly storePath: string;
 
-  constructor() {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  constructor(dataDir: string = DEFAULT_DATA_DIR) {
+    this.storePath = path.join(dataDir, 'l3-semantic.json');
+    fs.mkdirSync(dataDir, { recursive: true });
     this.load();
   }
 
   private load(): void {
     try {
-      if (fs.existsSync(STORE_PATH)) {
-        this.rules = JSON.parse(fs.readFileSync(STORE_PATH, 'utf8')) as SemanticMemory[];
+      if (fs.existsSync(this.storePath)) {
+        this.rules = JSON.parse(fs.readFileSync(this.storePath, 'utf8')) as SemanticMemory[];
       }
     } catch {
       this.rules = [];
@@ -48,10 +49,10 @@ export class L3SemanticMemory {
     // Write to a sibling .tmp file then atomically rename so a mid-write
     // process.exit never leaves a truncated or partially-written JSON file.
     const snapshot = JSON.stringify(this.rules, null, 2);
-    const tmp = STORE_PATH + '.tmp';
+    const tmp = this.storePath + '.tmp';
     this.writeQueue = this.writeQueue
       .then(() => fsPromises.writeFile(tmp, snapshot, 'utf8'))
-      .then(() => fsPromises.rename(tmp, STORE_PATH))
+      .then(() => fsPromises.rename(tmp, this.storePath))
       .catch((err) => console.error('[L3] Failed to persist rules:', err));
   }
 

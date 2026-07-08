@@ -9,7 +9,6 @@ import {
   MemoryEvent,
   MemoryQueryResult,
   LogEpisodeParams,
-  WorkingMemoryState,
   EpisodicMemory,
   SemanticMemory,
 } from './types.js';
@@ -22,15 +21,17 @@ export class MemorySystem {
   private maintenance: MemoryMaintenance | null = null;
   private eventListeners: Array<(event: MemoryEvent) => void> = [];
 
-  constructor() {
+  constructor(dataDir?: string) {
     this.l1 = new L1WorkingMemory();
-    this.l2 = new L2EpisodicMemory();
-    this.l3 = new L3SemanticMemory();
+    this.l2 = new L2EpisodicMemory(dataDir);
+    this.l3 = new L3SemanticMemory(dataDir);
     console.log(`🧠 MemorySystem online — L2: ${this.l2.count()} episodes | L3: ${this.l3.count()} rules`);
   }
 
-  // Wire background maintenance with the LLM service (started after agent boots)
+  // Wire background maintenance and inject the embedding function into L2
+  // so pgvector similarity search activates as soon as the LLM service is ready.
   startMaintenance(llm: LLMService): void {
+    this.l2.setEmbedFn(llm.embedText.bind(llm));
     this.maintenance = new MemoryMaintenance(this.l2, this.l3, llm, (event) => this.emit(event));
     this.maintenance.start();
   }
@@ -39,9 +40,9 @@ export class MemorySystem {
     this.maintenance?.stop();
   }
 
-  /** Drain both L2 and L3 write queues before process exit. */
+  /** Drain write queues and close external connections before process exit. */
   async flush(): Promise<void> {
-    await Promise.all([this.l2.flush(), this.l3.flush()]);
+    await Promise.all([this.l2.flush(), this.l3.flush(), this.l1.disconnect()]);
   }
 
   onMemoryEvent(listener: (event: MemoryEvent) => void): void {
@@ -88,20 +89,11 @@ export class MemorySystem {
     return memory;
   }
 
-  // L1 pass-throughs
-  getWorkingMemory(): WorkingMemoryState {
-    return this.l1.get();
-  }
-
-  updateWorkingMemory(patch: Partial<WorkingMemoryState>): void {
-    this.l1.update(patch);
-  }
-
   recordDecision(tokenId: string, strategy: string): void {
     this.l1.addDecision(tokenId, strategy);
   }
 
-  stats(): { l1: WorkingMemoryState; l2Count: number; l3Count: number } {
+  stats(): { l1: ReturnType<L1WorkingMemory['get']>; l2Count: number; l3Count: number } {
     return {
       l1: this.l1.get(),
       l2Count: this.l2.count(),

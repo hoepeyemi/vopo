@@ -168,16 +168,25 @@ describe('shouldChangeStrategy', () => {
     expect(shouldChangeStrategy(Strategy.Conservative, Strategy.Hold, 75)).toBe(true);
   });
 
-  it('requires higher confidence to move to riskier strategy', () => {
-    // Default minConfidence is 70, so needs 80+ for riskier
-    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Conservative, 75)).toBe(false);
-    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Conservative, 85)).toBe(true);
+  it('Hold → Conservative only requires minConfidence (activating yield is not a risk upgrade)', () => {
+    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Conservative, 69)).toBe(false); // below min
+    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Conservative, 70)).toBe(true);  // at min
+    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Conservative, 75)).toBe(true);  // above min
+  });
+
+  it('requires minConfidence + DELTA to move to a genuinely riskier strategy', () => {
+    // Default minConfidence=70, DELTA=10, so Aggressive needs 80+
+    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Aggressive, 79)).toBe(false);
+    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Aggressive, 80)).toBe(true);
+    expect(shouldChangeStrategy(Strategy.Conservative, Strategy.Aggressive, 79)).toBe(false);
     expect(shouldChangeStrategy(Strategy.Conservative, Strategy.Aggressive, 85)).toBe(true);
   });
 
   it('respects custom minConfidence parameter', () => {
-    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Conservative, 65, 50)).toBe(true);
-    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Aggressive, 65, 50)).toBe(true);
+    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Conservative, 49, 50)).toBe(false);
+    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Conservative, 50, 50)).toBe(true);
+    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Aggressive, 59, 50)).toBe(false);
+    expect(shouldChangeStrategy(Strategy.Hold, Strategy.Aggressive, 60, 50)).toBe(true);
   });
 });
 

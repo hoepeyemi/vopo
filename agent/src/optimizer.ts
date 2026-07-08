@@ -2,7 +2,7 @@
 // Beyond simple rules - uses multi-factor scoring and pattern recognition
 
 import { Strategy, Invoice, Deposit, AnalysisResult, MarketConditions, MarketAlert } from './types.js';
-import { STRATEGY_NAMES } from './constants.js';
+import { STRATEGY_NAMES, AGENT_THRESHOLDS, ANALYSIS_INTERVAL_MS } from './constants.js';
 
 // Historical decision tracking for learning
 interface DecisionRecord {
@@ -37,7 +37,6 @@ interface OptimizationContext {
   invoice: Invoice;
   deposit?: Deposit;
   currentTimestamp: number;
-  marketConditions?: MarketConditions;
 }
 
 interface StrategyRecommendation {
@@ -50,100 +49,86 @@ interface StrategyRecommendation {
 export function optimizeStrategy(context: OptimizationContext): StrategyRecommendation {
   const { invoice, deposit, currentTimestamp } = context;
 
-  const factors: string[] = [];
-  let score = 0;
-
-  // Calculate days until due
   const daysUntilDue = Math.floor((invoice.dueDate - currentTimestamp) / (24 * 60 * 60));
+  const depositDuration = deposit
+    ? (currentTimestamp - deposit.depositTime) / (24 * 60 * 60)
+    : 0;
 
-  // Factor 1: Risk Score (0-100, higher = safer)
-  if (invoice.riskScore >= 80) {
-    score += 30;
-    factors.push(`High risk score (${invoice.riskScore}/100) indicates reliable payer`);
-  } else if (invoice.riskScore >= 60) {
-    score += 15;
-    factors.push(`Moderate risk score (${invoice.riskScore}/100)`);
-  } else if (invoice.riskScore >= 40) {
-    score += 5;
-    factors.push(`Below average risk score (${invoice.riskScore}/100) suggests caution`);
-  } else {
-    score -= 10;
-    factors.push(`Low risk score (${invoice.riskScore}/100) indicates high default risk`);
+  // Hard rule: overdue invoices always go to Hold regardless of risk score or
+  // payment history. No yield strategy is appropriate when the debtor is already
+  // past their payment date — capital protection takes priority.
+  if (daysUntilDue < 0) {
+    const overdueFactors = [
+      `Invoice OVERDUE by ${Math.abs(daysUntilDue)} days — elevated default risk`,
+      'Capital protection required until payment or resolution',
+    ];
+    const overdueConfidence = Math.min(95, 70 + Math.floor(Math.abs(daysUntilDue) / 5));
+    const overdueReasoning = generateReasoning('Hold', overdueFactors, overdueConfidence, daysUntilDue);
+    return { strategy: Strategy.Hold, confidence: overdueConfidence, reasoning: overdueReasoning, factors: overdueFactors };
   }
 
-  // Factor 2: Payment Probability
-  if (invoice.paymentProbability >= 90) {
-    score += 25;
-    factors.push(`Excellent payment probability (${invoice.paymentProbability}%)`);
-  } else if (invoice.paymentProbability >= 75) {
-    score += 15;
-    factors.push(`Good payment probability (${invoice.paymentProbability}%)`);
-  } else if (invoice.paymentProbability >= 50) {
-    score += 5;
-    factors.push(`Moderate payment probability (${invoice.paymentProbability}%)`);
-  } else {
-    score -= 15;
-    factors.push(`Low payment probability (${invoice.paymentProbability}%) - significant risk`);
-  }
+  // Map the current market regime to a volatility level for composite scoring.
+  // The market-adjustment pass (applyMarketAdjustment / applyRegimeAdjustment)
+  // further overrides the recommendation after this function returns, so only
+  // an approximate signal is needed here.
+  const regimeVolatility: Record<MarketRegime, string> = {
+    bull: 'low', stable: 'low', unknown: 'medium', bear: 'high', volatile: 'high',
+  };
+  const marketVolatility = regimeVolatility[getCurrentRegime()];
 
-  // Factor 3: Time until due
-  if (daysUntilDue >= 60) {
-    score += 20;
-    factors.push(`Long duration (${daysUntilDue} days) allows for yield accumulation`);
-  } else if (daysUntilDue >= 30) {
-    score += 15;
-    factors.push(`Moderate duration (${daysUntilDue} days) for yield`);
-  } else if (daysUntilDue >= 14) {
-    score += 5;
-    factors.push(`Short duration (${daysUntilDue} days) limits yield potential`);
-  } else if (daysUntilDue >= 0) {
-    score -= 5;
-    factors.push(`Very short duration (${daysUntilDue} days) - minimal yield opportunity`);
-  } else {
-    score -= 30;
-    factors.push(`Invoice is OVERDUE by ${Math.abs(daysUntilDue)} days - high risk`);
-  }
+  // Primary scoring: weighted multi-factor composite model (0–1 normalised)
+  const composite = calculateCompositeScore(
+    invoice.riskScore,
+    invoice.paymentProbability,
+    daysUntilDue,
+    marketVolatility,
+    depositDuration,
+  );
 
-  // Factor 4: Current strategy efficiency
-  if (deposit) {
-    const depositDuration = (currentTimestamp - deposit.depositTime) / (24 * 60 * 60);
-    if (deposit.strategy === Strategy.Hold && score > 50) {
-      score += 10;
-      factors.push(`Currently on Hold strategy but conditions favor yield optimization`);
-    } else if (deposit.strategy === Strategy.Aggressive && score < 30) {
-      score -= 10;
-      factors.push(`Aggressive strategy may be too risky given current conditions`);
-    }
+  // Pattern recognition provides qualitative context and confidence weighting
+  const pattern = recognizePatterns(invoice.riskScore, daysUntilDue, marketVolatility);
 
-    if (depositDuration > 7 && deposit.strategy === Strategy.Hold) {
-      factors.push(`Invoice has been on Hold for ${Math.floor(depositDuration)} days - consider activation`);
-    }
-  }
-
-  // Determine strategy based on score
+  // Map composite score → strategy with calibrated confidence.
+  // Thresholds ensure derived risk metrics for real invoices produce meaningful
+  // changes while vanilla 50/50 defaults land in Conservative (not Hold).
   let strategy: Strategy;
-  let confidence: number;
+  let baseConfidence: number;
 
-  if (score >= 60) {
+  if (composite.score >= 0.65) {
     strategy = Strategy.Aggressive;
-    confidence = Math.min(95, 70 + (score - 60));
-  } else if (score >= 30) {
+    // 60–95%: score of ~0.80 clears the +10 confidence bar for risky upgrades
+    baseConfidence = Math.round(60 + ((composite.score - 0.65) / 0.35) * 35);
+  } else if (composite.score >= 0.42) {
     strategy = Strategy.Conservative;
-    confidence = Math.min(90, 60 + (score - 30));
+    // 55–90%: score of ~0.50 yields ~65%, enough to act on a Hold→Conservative move
+    baseConfidence = Math.round(55 + ((composite.score - 0.42) / 0.23) * 35);
   } else {
     strategy = Strategy.Hold;
-    confidence = Math.min(85, 50 + Math.abs(score));
+    // 50–90%: higher score within Hold band = more confident about protecting capital
+    baseConfidence = Math.round(50 + ((0.42 - composite.score) / 0.42) * 40);
   }
 
-  // Generate reasoning
-  const reasoning = generateReasoning(STRATEGY_NAMES[strategy], factors, confidence, daysUntilDue, invoice);
+  // Blend in pattern confidence to reward well-understood market scenarios
+  const blendedConfidence = Math.round(baseConfidence * 0.85 + pattern.confidence * 0.15);
+  const confidence = Math.min(95, Math.max(50, blendedConfidence));
 
-  return {
-    strategy,
-    confidence,
-    reasoning,
-    factors,
-  };
+  const factors: string[] = [...composite.insights];
+  if (pattern.pattern !== 'Standard') {
+    factors.push(`${pattern.pattern} pattern — ${pattern.recommendation}`);
+  }
+  if (deposit) {
+    if (deposit.strategy === Strategy.Hold && composite.score > 0.55) {
+      factors.push('Idle Hold position — fundamentals support yield activation');
+    } else if (deposit.strategy === Strategy.Aggressive && composite.score < 0.35) {
+      factors.push('Aggressive strategy misaligned with current fundamentals');
+    }
+    if (depositDuration > 7 && deposit.strategy === Strategy.Hold) {
+      factors.push(`On Hold for ${Math.floor(depositDuration)}d — due for yield activation review`);
+    }
+  }
+
+  const reasoning = generateReasoning(STRATEGY_NAMES[strategy], factors, confidence, daysUntilDue);
+  return { strategy, confidence, reasoning, factors };
 }
 
 function generateReasoning(
@@ -151,7 +136,6 @@ function generateReasoning(
   factors: string[],
   confidence: number,
   daysUntilDue: number,
-  invoice: Invoice
 ): string {
   const topFactors = factors.slice(0, 3).join('. ');
 
@@ -173,7 +157,7 @@ function generateReasoning(
 // ============ Advanced Intelligence Features ============
 
 // Multi-factor composite scoring with weighted factors
-export function calculateCompositeScore(
+function calculateCompositeScore(
   riskScore: number,
   paymentProbability: number,
   daysUntilDue: number,
@@ -235,7 +219,7 @@ export function calculateCompositeScore(
 }
 
 // Pattern recognition from historical decisions
-export function recognizePatterns(
+function recognizePatterns(
   riskScore: number,
   daysUntilDue: number,
   marketVolatility: string
@@ -277,9 +261,22 @@ export function recognizePatterns(
   // Find matching pattern
   for (const pattern of patterns) {
     if (pattern.match(riskScore, daysUntilDue, marketVolatility)) {
+      // Frequency bonus: patterns seen often in similar conditions get higher confidence.
+      // patternInsights keys are "${strategy}-${riskBucket}-${volatility}" — we search
+      // for any key matching the current risk bucket + volatility (strategy-agnostic)
+      // so the bonus reflects how well this market situation is understood overall.
+      const riskBucket = Math.floor(riskScore / 20) * 20;
+      let frequencyBonus = 0;
+      for (const [key, count] of patternInsights) {
+        if (key.endsWith(`-${riskBucket}-${marketVolatility}`)) {
+          // +2 per observed execution, capped at +15 so fresh data never dominates
+          frequencyBonus = Math.min(count * 2, 15);
+          break;
+        }
+      }
       return {
         pattern: pattern.name,
-        confidence: pattern.confidence,
+        confidence: Math.min(95, pattern.confidence + frequencyBonus),
         recommendation: pattern.recommendation,
       };
     }
@@ -350,7 +347,7 @@ export function shouldChangeStrategy(
   current: Strategy,
   recommended: Strategy,
   confidence: number,
-  minConfidence: number = 60
+  minConfidence: number = AGENT_THRESHOLDS.MIN_CONFIDENCE,
 ): boolean {
   // Don't change if same strategy
   if (current === recommended) return false;
@@ -358,11 +355,16 @@ export function shouldChangeStrategy(
   // Don't change if confidence is too low
   if (confidence < minConfidence) return false;
 
-  // Always allow moving to safer strategy
+  // Always allow moving to a safer strategy (de-risking)
   if (recommended < current) return true;
 
-  // Require higher confidence to move to riskier strategy
-  if (recommended > current && confidence >= minConfidence + 10) return true;
+  // Hold → Conservative: activating yield with capital protection is not a risk
+  // upgrade — treat it like a de-risk move and require only minConfidence.
+  if (current === Strategy.Hold && recommended === Strategy.Conservative) return true;
+
+  // Any other upward move (Hold→Aggressive, Conservative→Aggressive) requires
+  // higher confidence because we are exposing capital to greater risk.
+  if (recommended > current && confidence >= minConfidence + AGENT_THRESHOLDS.RISKY_UPGRADE_DELTA) return true;
 
   return false;
 }
@@ -370,7 +372,8 @@ export function shouldChangeStrategy(
 export function analyzeInvoice(
   invoice: Invoice,
   deposit: Deposit | undefined,
-  currentTimestamp: number
+  currentTimestamp: number,
+  minConfidence: number = AGENT_THRESHOLDS.MIN_CONFIDENCE,
 ): AnalysisResult {
   const recommendation = optimizeStrategy({
     invoice,
@@ -384,7 +387,8 @@ export function analyzeInvoice(
   const shouldAct = shouldChangeStrategy(
     currentStrategy,
     recommendation.strategy,
-    recommendation.confidence
+    recommendation.confidence,
+    minConfidence,
   );
 
   return {
@@ -414,17 +418,19 @@ export function applyMarketAdjustment(
 
   const adjusted = { ...analysis };
 
-  // Critical alert: Force move to Hold
+  // Critical alert: unconditionally force Hold regardless of current or recommended
+  // strategy. The previous guard (currentStrategy !== Hold) was wrong: if the
+  // position is already Hold but the optimizer recommended Aggressive (shouldAct=true),
+  // the guard would skip the override and let an Aggressive upgrade execute during
+  // a market crash.
   if (marketAlert.level === 'critical') {
-    if (analysis.currentStrategy !== Strategy.Hold) {
-      adjusted.recommendedStrategy = Strategy.Hold;
-      adjusted.confidence = 95; // High confidence for protective action
-      adjusted.shouldAct = true;
-      adjusted.reasoning = `MARKET OVERRIDE: ${marketAlert.message}. ` +
-        `Moving to HOLD strategy to protect capital. ` +
-        `Original analysis suggested ${STRATEGY_NAMES[analysis.recommendedStrategy]} ` +
-        `but market conditions require defensive positioning.`;
-    }
+    adjusted.recommendedStrategy = Strategy.Hold;
+    adjusted.confidence = 95;
+    adjusted.shouldAct = analysis.currentStrategy !== Strategy.Hold; // act only if not already safe
+    adjusted.reasoning = `MARKET OVERRIDE: ${marketAlert.message}. ` +
+      `Forcing HOLD to protect capital. ` +
+      `Original analysis suggested ${STRATEGY_NAMES[analysis.recommendedStrategy]} ` +
+      `but market conditions require defensive positioning.`;
   }
 
   // Warning alert: Cap at Conservative
@@ -451,24 +457,6 @@ export function applyMarketAdjustment(
   return adjusted;
 }
 
-// Generate market-aware reasoning
-export function generateMarketReasoning(
-  baseReasoning: string,
-  marketConditions: MarketConditions | null
-): string {
-  if (!marketConditions || marketConditions.volatilityLevel === 'low') {
-    return baseReasoning;
-  }
-
-  const volatilityNote = marketConditions.volatilityLevel === 'extreme'
-    ? 'EXTREME market volatility detected - prioritizing capital protection.'
-    : marketConditions.volatilityLevel === 'high'
-    ? 'High market volatility - factoring increased risk into strategy.'
-    : 'Moderate market movement - maintaining vigilance.';
-
-  return `${volatilityNote} ${baseReasoning}`;
-}
-
 // ============ Market Regime Detection ============
 
 /**
@@ -486,8 +474,9 @@ export function updateMarketRegime(marketConditions: MarketConditions): MarketRe
     volatility: marketConditions.volatilityLevel,
   });
 
-  // Keep last 24 data points (roughly 12 hours at 30s intervals)
-  while (marketHistory.length > 288) {
+  // Keep last 288 data points (~2.4 hours at ANALYSIS_INTERVAL_MS intervals)
+  const maxPoints = Math.ceil(2.4 * 60 * 60 * 1000 / ANALYSIS_INTERVAL_MS);
+  while (marketHistory.length > maxPoints) {
     marketHistory.shift();
   }
 
@@ -638,7 +627,10 @@ export function getRegimeAdjustment(): {
 /**
  * Apply regime-based adjustments to analysis result
  */
-export function applyRegimeAdjustment(analysis: AnalysisResult): AnalysisResult {
+export function applyRegimeAdjustment(
+  analysis: AnalysisResult,
+  minConfidence: number = AGENT_THRESHOLDS.MIN_CONFIDENCE,
+): AnalysisResult {
   const adjustment = getRegimeAdjustment();
 
   if (adjustment.regime === 'unknown') {
@@ -658,15 +650,19 @@ export function applyRegimeAdjustment(analysis: AnalysisResult): AnalysisResult 
     adjusted.shouldAct = shouldChangeStrategy(
       analysis.currentStrategy,
       Strategy.Conservative,
-      analysis.confidence
+      analysis.confidence,
+      minConfidence,
     );
   }
 
-  // In bear markets, suggest moving from aggressive to conservative
+  // In bear markets, suggest moving from aggressive to conservative.
+  // Block 2 condition (currentStrategy === Aggressive) is mutually exclusive with
+  // Block 1 (currentStrategy !== Aggressive), so adjusted state from Block 1
+  // is never overwritten here.
   if (adjustment.regime === 'bear' &&
       analysis.currentStrategy === Strategy.Aggressive) {
     adjusted.recommendedStrategy = Strategy.Conservative;
-    adjusted.confidence = Math.max(analysis.confidence, 80);
+    adjusted.confidence = Math.max(analysis.confidence, AGENT_THRESHOLDS.HIGH_CONFIDENCE);
     adjusted.shouldAct = true;
     adjusted.reasoning = `REGIME ADJUSTMENT (BEAR MARKET): ` +
       `${adjustment.description}. Recommending de-risking from Aggressive to Conservative.`;
