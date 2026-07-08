@@ -18,7 +18,7 @@ import {
 import { TerminalNav } from "@/components/terminal-nav"
 import { StatusBar } from "@/components/ui/status-bar"
 import { Lock, Eye, EyeOff, Shield, UserPlus, Copy, Check, FileText, AlertTriangle, Loader2 } from "lucide-react"
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi"
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from "wagmi"
 import { useInvoiceNFT } from "@/hooks/use-invoice-nft"
 import { InvoiceNFTABI } from "@/lib/contracts/abis"
 import { getInvoiceNFTAddress } from "@/lib/contracts/addresses"
@@ -36,7 +36,8 @@ export default function IssuerDashboardPage() {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const contractAddress = getInvoiceNFTAddress(chainId)
-  const { totalInvoices, userBalance } = useInvoiceNFT()
+  const { activeInvoices } = useInvoiceNFT()
+  const publicClient = usePublicClient()
 
   const [invoices, setInvoices] = useState<InvoicePrivacy[]>([])
   const [selectedInvoice, setSelectedInvoice] = useState<InvoicePrivacy | null>(null)
@@ -49,27 +50,50 @@ export default function IssuerDashboardPage() {
   const { writeContract, data: txHash, isPending } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash })
 
-  // Fetch user's invoices
+  // Fetch real invoice data from chain for every active token ID
   useEffect(() => {
     async function fetchUserInvoices() {
-      if (!isConnected || !address || userBalance === 0) {
+      if (!isConnected || !address || !publicClient || !contractAddress) {
+        setIsLoading(false)
+        return
+      }
+
+      // activeInvoices is bigint[] from getActiveInvoices()
+      const tokenIds = (activeInvoices as bigint[]).filter(Boolean)
+      if (tokenIds.length === 0) {
         setInvoices([])
         setIsLoading(false)
         return
       }
 
       try {
-        // For demo, create mock invoice data based on user balance
-        const mockInvoices: InvoicePrivacy[] = []
-        for (let i = 1; i <= Math.min(userBalance, 5); i++) {
-          mockInvoices.push({
-            tokenId: i.toString(),
-            dataCommitment: `0x${Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('')}`,
-            isRevealed: false,
-            authorizedAddresses: [],
+        const results = await Promise.all(
+          tokenIds.map((id) =>
+            publicClient.readContract({
+              address: contractAddress,
+              abi: InvoiceNFTABI,
+              functionName: "getInvoice",
+              args: [id],
+            })
+          )
+        )
+
+        const parsed: InvoicePrivacy[] = results
+          .map((inv, idx) => {
+            if (!inv) return null
+            const data = inv as { dataCommitment: string; issuer: string }
+            // Only show invoices owned by the connected wallet
+            if (data.issuer?.toLowerCase() !== address.toLowerCase()) return null
+            return {
+              tokenId: tokenIds[idx].toString(),
+              dataCommitment: data.dataCommitment,
+              isRevealed: false,
+              authorizedAddresses: [] as string[],
+            } satisfies InvoicePrivacy
           })
-        }
-        setInvoices(mockInvoices)
+          .filter((x): x is NonNullable<typeof x> => x !== null)
+
+        setInvoices(parsed)
       } catch (error) {
         console.error("Failed to fetch invoices:", error)
       } finally {
@@ -78,7 +102,7 @@ export default function IssuerDashboardPage() {
     }
 
     fetchUserInvoices()
-  }, [isConnected, address, userBalance])
+  }, [isConnected, address, publicClient, contractAddress, activeInvoices])
 
   const handleAuthorize = () => {
     if (!selectedInvoice || !newAddress || !isAddress(newAddress)) return
@@ -133,7 +157,7 @@ export default function IssuerDashboardPage() {
           </div>
           <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
             <Lock className="w-3 h-3 mr-2" />
-            {userBalance} Invoice{userBalance !== 1 ? 's' : ''} Protected
+            {invoices.length} Invoice{invoices.length !== 1 ? 's' : ''} Protected
           </Badge>
         </div>
 
