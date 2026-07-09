@@ -105,7 +105,7 @@ export default function Dashboard() {
           return {
             id: `INV-${String(inv.tokenId).padStart(4, "0")}`,
             tokenId: inv.tokenId,
-            amount: `$${principal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            amount: `$${principal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             amountRaw: principal,
             dueDate: dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
             daysUntilDue,

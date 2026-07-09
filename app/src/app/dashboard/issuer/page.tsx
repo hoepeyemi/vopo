@@ -104,7 +104,11 @@ export default function IssuerDashboardPage() {
     error: writeError,
   } = useWriteContract()
 
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+  const {
+    isLoading: isConfirming,
+    isSuccess,
+    error: receiptError,
+  } = useWaitForTransactionReceipt({
     hash: txHash,
     confirmations: 1,
   })
@@ -113,13 +117,11 @@ export default function IssuerDashboardPage() {
   //
   // Strategy:
   //   1. Call getActiveInvoices() — one eth_call, returns all active tokenIds chain-wide
-  //   2. Batch-read invoices(tokenId) for each — one multicall (all in a single eth_call)
-  //      Using the PUBLIC MAPPING GETTER (8 individually-named outputs) rather than
-  //      getInvoice (unnamed tuple) because viem decodes named outputs more reliably.
+  //   2. Batch-read via getInvoice(tokenId) multicall — decoded as a named object because
+  //      getInvoice returns a single unnamed tuple (viem decodes tuple components by name).
+  //      NOT "invoices" (public mapping getter): its 8 top-level named outputs are decoded
+  //      as an array by viem v2, making raw.issuer undefined and filtering everything out.
   //   3. Filter client-side: issuer === address && ACTIVE_STATUSES.has(status)
-  //
-  // This avoids eth_getLogs block-range limits (Mantle RPCs cap at 10,000 blocks per
-  // request) and the need to know the contract's deployment block.
 
   const fetchUserInvoices = useCallback(async () => {
     if (!isConnected || !address || !publicClient || !contractAddress) {
@@ -140,7 +142,6 @@ export default function IssuerDashboardPage() {
 
       if (!activeIds || activeIds.length === 0) {
         setInvoices([])
-        setIsLoading(false)
         return
       }
 
@@ -391,6 +392,10 @@ export default function IssuerDashboardPage() {
 
   // A MetaMask simulation warning occurs when the node ignores `from` in eth_call
   // and wrongly predicts a revert. The tx WILL succeed if the pre-flight passed.
+  // Detect MetaMask's pre-send simulation failure on Mantle Sepolia's broken RPC.
+  // writeError is a PRE-SUBMIT error (wallet rejected / simulated revert) — distinct
+  // from receiptError which is a POST-SUBMIT on-chain revert.
+  // We check message content because wagmi surfaces the underlying provider error text.
   const isMetaMaskSimWarning =
     !!writeError &&
     !preflightError &&
@@ -398,10 +403,20 @@ export default function IssuerDashboardPage() {
       writeError.message?.includes("execution reverted") ||
       writeError.message?.includes("EstimateGasExecutionError"))
 
+  // Covers MetaMask ("User rejected the request"), WalletConnect ("user rejected"),
+  // Coinbase Wallet ("User denied"), and wagmi's own UserRejectedRequestError.
   const isUserRejected =
     !!writeError &&
-    writeError.message?.toLowerCase().includes("user rejected")
+    (writeError.message?.toLowerCase().includes("user rejected") ||
+      writeError.message?.toLowerCase().includes("user denied") ||
+      writeError.message?.toLowerCase().includes("rejected the request"))
 
+  // On-chain revert after the tx was mined (e.g. state changed post-preflight)
+  // Shown via its own dedicated banner — NOT routed through displayError to avoid duplication.
+  const isOnChainRevert = !!receiptError
+
+  // displayError covers: pre-flight failures + unexpected write errors.
+  // isOnChainRevert, isMetaMaskSimWarning, and isUserRejected each have dedicated banners.
   const displayError =
     preflightError ??
     (writeError && !isMetaMaskSimWarning && !isUserRejected
@@ -581,13 +596,15 @@ export default function IssuerDashboardPage() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <code className="text-xs text-muted-foreground font-mono">
-                          {invoice.dataCommitment.slice(0, 10)}…
-                          {invoice.dataCommitment.slice(-8)}
+                          {invoice.dataCommitment
+                            ? `${invoice.dataCommitment.slice(0, 10)}…${invoice.dataCommitment.slice(-8)}`
+                            : "—"}
                         </code>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
+                          disabled={!invoice.dataCommitment}
                           onClick={() =>
                             copyCommitment(invoice.dataCommitment, invoice.tokenId)
                           }
@@ -736,6 +753,31 @@ export default function IssuerDashboardPage() {
               </div>
             )}
 
+            {/* On-chain revert (tx mined but contract rejected it) */}
+            {isOnChainRevert && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+                <XCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-destructive space-y-1">
+                  <p className="font-medium">Transaction reverted on-chain</p>
+                  <p>
+                    The contract rejected the transaction after it was mined. This
+                    can happen if the invoice state changed between verification
+                    and execution. Please refresh and try again.
+                  </p>
+                  {txHash && (
+                    <a
+                      href={`${EXPLORER}/tx/${txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 underline opacity-80"
+                    >
+                      View failed tx <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Pending wallet signature */}
             {isPending && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/30">
@@ -800,7 +842,7 @@ export default function IssuerDashboardPage() {
             <Button
               variant="outline"
               onClick={closeDialog}
-              disabled={isBusy}
+              disabled={isSubmitting || isPending}
             >
               {isSuccess ? "Close" : "Cancel"}
             </Button>
