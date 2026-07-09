@@ -32,6 +32,16 @@ export type ContractAddresses = {
 
 const ZERO = "0x0000000000000000000000000000000000000000" as `0x${string}`
 
+// Block number at or before the first contract deployment on each chain.
+// Used as fromBlock floor in eth_getLogs calls to avoid scanning the entire
+// chain history (public RPCs cap ranges at 10,000 blocks per request).
+export const CONTRACT_DEPLOY_BLOCKS: Partial<Record<ChainId, bigint>> = {
+  [CHAIN_IDS.MANTLE_SEPOLIA]: BigInt(
+    process.env.NEXT_PUBLIC_DEPLOY_BLOCK || "40900000"
+  ),
+  [CHAIN_IDS.LOCAL]: BigInt(0),
+}
+
 const emptyAddresses: ContractAddresses = {
   invoiceNFT: ZERO,
   yieldVault: ZERO,

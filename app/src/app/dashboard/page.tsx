@@ -167,7 +167,7 @@ export default function Dashboard() {
             </div>
             <div className="text-[32px] font-bold tabular-nums">
               <span className="text-[#666666]">$</span>
-              <span className="text-[#10b981]">{tvlFormatted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-[#10b981]">{tvlFormatted.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
           <Link href="/dashboard/mint">
@@ -184,7 +184,7 @@ export default function Dashboard() {
               TVL
               <span className="w-1 h-1 rounded-full bg-[#10b981] status-pulse" />
             </div>
-            <div className="stat-value tabular-nums">${tvlFormatted.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+            <div className="stat-value tabular-nums">${tvlFormatted.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
           </div>
           <div className="stat-cell">
             <div className="stat-label flex items-center gap-2">

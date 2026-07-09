@@ -65,7 +65,10 @@ contract InvoiceNFT is ERC721, ERC721Enumerable, Ownable {
     }
 
     modifier onlyTokenOwner(uint256 tokenId) {
-        require(ownerOf(tokenId) == msg.sender, "Not token owner");
+        // Check issuer (original minter) rather than current ownerOf so that
+        // authorizeReveal still works when the NFT is held by the YieldVault
+        // after deposit — the issuer never changes once set at mint time.
+        require(invoices[tokenId].issuer == msg.sender, "Not token owner");
         _;
     }
 

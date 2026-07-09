@@ -235,8 +235,8 @@ function InvoiceDetailContent() {
                   <div className="text-[#10b981] font-semibold mb-2">earning yield</div>
                   <div className="grid gap-2 sm:grid-cols-2 text-[#d6d6d6]">
                     <div>strategy: {deposit.strategyLabel}</div>
-                    <div>principal: ${Number(deposit.principal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    <div>accrued yield: ${Number(deposit.accruedYield).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div>principal: ${Number(deposit.principal).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div>accrued yield: ${Number(deposit.accruedYield).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     <div>deposited: {formatDate(deposit.depositTime)}</div>
                   </div>
                 </div>

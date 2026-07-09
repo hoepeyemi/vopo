@@ -4,14 +4,15 @@ import { useState, useEffect } from 'react'
 import { Sun, Moon } from 'lucide-react'
 
 export function ThemeToggle() {
-  const [isDark, setIsDark] = useState(true)
+  // Start as null so server and client both render nothing until mounted,
+  // avoiding the hydration mismatch when localStorage differs from default.
+  const [isDark, setIsDark] = useState<boolean | null>(null)
 
   useEffect(() => {
     const stored = localStorage.getItem('vasmo-theme')
-    if (stored === 'light') {
-      setIsDark(false)
-      document.documentElement.classList.add('light-mode')
-    }
+    const dark = stored !== 'light'
+    setIsDark(dark)
+    if (!dark) document.documentElement.classList.add('light-mode')
   }, [])
 
   const toggle = () => {
@@ -26,6 +27,9 @@ export function ThemeToggle() {
       localStorage.setItem('vasmo-theme', 'light')
     }
   }
+
+  // Render nothing until mounted so server HTML matches client initial render
+  if (isDark === null) return <div className="w-8 h-8" />
 
   return (
     <button

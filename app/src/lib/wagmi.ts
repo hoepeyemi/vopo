@@ -60,6 +60,13 @@ export const mantleSepolia = defineChain({
       url: 'https://explorer.sepolia.mantle.xyz',
     },
   },
+  contracts: {
+    // Multicall3 is deployed at the canonical address on Mantle Sepolia.
+    // Without this, viem throws "ChainDoesNotSupportContract" when publicClient.multicall() is called.
+    multicall3: {
+      address: '0xcA11bde05977b3631167028862bE2a173976CA11',
+    },
+  },
 });
 
 const isTestnet = process.env.NEXT_PUBLIC_NETWORK_MODE !== 'mainnet';
@@ -74,6 +81,11 @@ const devChains = [anvil] as const;
 const isDev = process.env.NODE_ENV === 'development';
 
 export const config = createConfig({
+  // Required for Next.js App Router: prevents wagmi from synchronously
+  // rehydrating from localStorage on the first client render. Without this,
+  // useChainId()/useAccount() return restored values that differ from the
+  // server's initial render, causing React 19 hydration error #418.
+  ssr: true,
   chains: [
     ...(isTestnet ? testnetChains : mainnetChains),
     ...(isDev ? devChains : []),

@@ -87,7 +87,7 @@ export function TerminalNav() {
           </button>
         )}
 
-        <div className="network-badge">{chainLabel}</div>
+        {mounted && <div className="network-badge">{chainLabel}</div>}
       </div>
     </nav>
   )

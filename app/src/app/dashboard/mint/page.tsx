@@ -424,7 +424,7 @@ function MintInvoiceContent() {
                 </div>
                 <div>
                   <p className="text-[10px] text-[#666666] uppercase tracking-wider mb-1">amount</p>
-                  <p className="text-[13px] font-semibold">{formData.currency} {Number(formData.amount).toLocaleString()}</p>
+                  <p className="text-[13px] font-semibold">{formData.currency} {Number(formData.amount).toLocaleString("en-US")}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-[#666666] uppercase tracking-wider mb-1">due_date</p>

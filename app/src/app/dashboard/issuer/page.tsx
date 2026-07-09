@@ -1,12 +1,18 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   Dialog,
   DialogContent,
@@ -17,125 +23,394 @@ import {
 } from "@/components/ui/dialog"
 import { TerminalNav } from "@/components/terminal-nav"
 import { StatusBar } from "@/components/ui/status-bar"
-import { Lock, Eye, EyeOff, Shield, UserPlus, Copy, Check, FileText, AlertTriangle, Loader2 } from "lucide-react"
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from "wagmi"
-import { useInvoiceNFT } from "@/hooks/use-invoice-nft"
+import {
+  Lock,
+  Eye,
+  EyeOff,
+  Shield,
+  UserPlus,
+  Copy,
+  Check,
+  FileText,
+  AlertTriangle,
+  Loader2,
+  XCircle,
+  CheckCircle2,
+  ExternalLink,
+  RefreshCw,
+} from "lucide-react"
+import {
+  useAccount,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+  usePublicClient,
+  useChainId,
+} from "wagmi"
 import { InvoiceNFTABI } from "@/lib/contracts/abis"
 import { getInvoiceNFTAddress } from "@/lib/contracts/addresses"
-import { useChainId } from "wagmi"
-import { isAddress } from "viem"
+import { isAddress, type Address } from "viem"
+import { toast } from "sonner"
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface InvoicePrivacy {
   tokenId: string
   dataCommitment: string
-  isRevealed: boolean
-  authorizedAddresses: string[]
+  status: number
+  authorizedCount: number
 }
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+// InvoiceStatus.Active = 0, InvoiceStatus.InYield = 1
+const ACTIVE_STATUSES = new Set([0, 1])
+
+// Gas budget for authorizeReveal.
+// Breakdown: SLOAD cold (2100) + SSTORE first write (20000) + LOG2 (~1700) + overhead ≈ 80k.
+// 200k is a generous safety buffer for Mantle Sepolia's variable gas costs.
+const AUTHORIZE_GAS = 200_000n
+
+const EXPLORER = "https://explorer.sepolia.mantle.xyz"
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function IssuerDashboardPage() {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const contractAddress = getInvoiceNFTAddress(chainId)
-  const { activeInvoices } = useInvoiceNFT()
   const publicClient = usePublicClient()
 
   const [invoices, setInvoices] = useState<InvoicePrivacy[]>([])
-  const [selectedInvoice, setSelectedInvoice] = useState<InvoicePrivacy | null>(null)
-  const [authorizeDialogOpen, setAuthorizeDialogOpen] = useState(false)
-  const [newAddress, setNewAddress] = useState("")
-  const [copied, setCopied] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Contract write for authorizing reveal
-  const { writeContract, data: txHash, isPending } = useWriteContract()
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash })
+  // Dialog state
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoicePrivacy | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [newAddress, setNewAddress] = useState("")
+  const [preflightError, setPreflightError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  // Fetch real invoice data from chain for every active token ID
-  useEffect(() => {
-    async function fetchUserInvoices() {
-      if (!isConnected || !address || !publicClient || !contractAddress) {
-        setIsLoading(false)
-        return
-      }
+  // Keep a ref to always-current address so async closures don't capture a stale value
+  const addressRef = useRef(address)
+  useEffect(() => { addressRef.current = address }, [address])
 
-      // activeInvoices is bigint[] from getActiveInvoices()
-      const tokenIds = (activeInvoices as bigint[]).filter(Boolean)
-      if (tokenIds.length === 0) {
+  const {
+    writeContract,
+    reset: resetWrite,
+    data: txHash,
+    isPending,
+    error: writeError,
+  } = useWriteContract()
+
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash: txHash,
+    confirmations: 1,
+  })
+
+  // ─── Fetch user invoices ──────────────────────────────────────────────────
+  //
+  // Strategy:
+  //   1. Call getActiveInvoices() — one eth_call, returns all active tokenIds chain-wide
+  //   2. Batch-read invoices(tokenId) for each — one multicall (all in a single eth_call)
+  //      Using the PUBLIC MAPPING GETTER (8 individually-named outputs) rather than
+  //      getInvoice (unnamed tuple) because viem decodes named outputs more reliably.
+  //   3. Filter client-side: issuer === address && ACTIVE_STATUSES.has(status)
+  //
+  // This avoids eth_getLogs block-range limits (Mantle RPCs cap at 10,000 blocks per
+  // request) and the need to know the contract's deployment block.
+
+  const fetchUserInvoices = useCallback(async () => {
+    if (!isConnected || !address || !publicClient || !contractAddress) {
+      setIsLoading(false)
+      return
+    }
+
+    setIsLoading(true)
+    setFetchError(null)
+
+    try {
+      // Step 1: get all active + inYield token IDs
+      const activeIds = await publicClient.readContract({
+        address: contractAddress,
+        abi: InvoiceNFTABI,
+        functionName: "getActiveInvoices",
+      }) as bigint[]
+
+      if (!activeIds || activeIds.length === 0) {
         setInvoices([])
         setIsLoading(false)
         return
       }
 
-      try {
-        const results = await Promise.all(
-          tokenIds.map((id) =>
-            publicClient.readContract({
-              address: contractAddress,
-              abi: InvoiceNFTABI,
-              functionName: "getInvoice",
-              args: [id],
-            })
-          )
-        )
+      // Step 2: batch-read invoice state for every active tokenId.
+      //   - functionName: "getInvoice" — returns a single unnamed tuple with NAMED components.
+      //     viem v2 decodes a single-tuple return as a named object { issuer, status, … }.
+      //   - NOT "invoices" (public mapping getter): that has 8 TOP-LEVEL named outputs which
+      //     viem v2 decodes as an array — raw.issuer would be undefined, filtering everything out.
+      //   - allowFailure: true so one bad read doesn't kill the whole batch.
+      const multicallResults = await publicClient.multicall({
+        contracts: activeIds.map((id) => ({
+          address: contractAddress as Address,
+          abi: InvoiceNFTABI,
+          functionName: "getInvoice" as const,
+          args: [id] as [bigint],
+        })),
+        allowFailure: true,
+      })
 
-        const parsed: InvoicePrivacy[] = results
-          .map((inv, idx) => {
-            if (!inv) return null
-            const data = inv as { dataCommitment: string; issuer: string }
-            // Only show invoices owned by the connected wallet
-            if (data.issuer?.toLowerCase() !== address.toLowerCase()) return null
-            return {
-              tokenId: tokenIds[idx].toString(),
-              dataCommitment: data.dataCommitment,
-              isRevealed: false,
-              authorizedAddresses: [] as string[],
-            } satisfies InvoicePrivacy
-          })
-          .filter((x): x is NonNullable<typeof x> => x !== null)
+      // Step 3: filter — keep only invoices minted by the connected wallet.
+      //
+      // getInvoice returns a single unnamed tuple: viem decodes it as a named object
+      //   { dataCommitment, amountCommitment, dueDate, createdAt, issuer, status, … }
+      // Access named components directly — no positional indexing needed.
+      const myInvoices: InvoicePrivacy[] = []
+      for (let i = 0; i < activeIds.length; i++) {
+        const result = multicallResults[i]
+        if (result.status === "failure") {
+          console.warn(`[issuer] getInvoice(${activeIds[i]}) multicall failure:`, result.error)
+          continue
+        }
 
-        setInvoices(parsed)
-      } catch (error) {
-        console.error("Failed to fetch invoices:", error)
-      } finally {
-        setIsLoading(false)
+        const raw = result.result as {
+          dataCommitment: `0x${string}`
+          amountCommitment: `0x${string}`
+          dueDate: bigint
+          createdAt: bigint
+          issuer: `0x${string}`
+          status: number
+          riskScore: number
+          paymentProbability: number
+        }
+
+        const issuer = raw?.issuer
+        const dataCommitment = raw?.dataCommitment
+        const statusVal = raw?.status
+
+        if (!issuer || issuer === "0x0000000000000000000000000000000000000000") {
+          console.warn(`[issuer] invoices(${activeIds[i]}) returned empty issuer`)
+          continue
+        }
+
+        // Only include invoices where THIS wallet is the original issuer
+        if (issuer.toLowerCase() !== address.toLowerCase()) continue
+
+        // Only show active or in-yield invoices
+        if (!ACTIVE_STATUSES.has(Number(statusVal))) continue
+
+        myInvoices.push({
+          tokenId: activeIds[i].toString(),
+          dataCommitment,
+          status: Number(statusVal),
+          authorizedCount: 0,
+        })
       }
+
+      setInvoices(myInvoices)
+    } catch (err) {
+      console.error("[issuer] fetchUserInvoices failed:", err)
+      const msg = err instanceof Error ? err.message : String(err)
+      setFetchError(`Failed to load invoices: ${msg.slice(0, 200)}`)
+      setInvoices([])
+    } finally {
+      setIsLoading(false)
     }
+  }, [isConnected, address, publicClient, contractAddress])
 
-    fetchUserInvoices()
-  }, [isConnected, address, publicClient, contractAddress, activeInvoices])
-
-  const handleAuthorize = () => {
-    if (!selectedInvoice || !newAddress || !isAddress(newAddress)) return
-
-    writeContract({
-      address: contractAddress,
-      abi: InvoiceNFTABI,
-      functionName: "authorizeReveal",
-      args: [BigInt(selectedInvoice.tokenId), newAddress as `0x${string}`],
-    })
-  }
-
-  const copyCommitment = (commitment: string) => {
-    navigator.clipboard.writeText(commitment)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  // Reset dialog on success
   useEffect(() => {
-    if (isSuccess) {
-      setAuthorizeDialogOpen(false)
-      setNewAddress("")
-      // Update local state
-      if (selectedInvoice) {
-        setInvoices(prev => prev.map(inv =>
-          inv.tokenId === selectedInvoice.tokenId
-            ? { ...inv, authorizedAddresses: [...inv.authorizedAddresses, newAddress] }
-            : inv
-        ))
+    fetchUserInvoices()
+  }, [fetchUserInvoices])
+
+  // ─── Authorize handler ────────────────────────────────────────────────────
+
+  const handleAuthorize = async () => {
+    if (
+      !selectedInvoice ||
+      !newAddress ||
+      !isAddress(newAddress) ||
+      !publicClient ||
+      !contractAddress
+    ) return
+
+    // Always read address from ref so we get the live value at call time,
+    // not a stale value captured earlier in the React closure.
+    const currentAddress = addressRef.current
+    if (!currentAddress) return
+
+    setPreflightError(null)
+    setIsSubmitting(true)
+
+    try {
+      // ── Strict pre-flight: verify on-chain issuer before spending gas ──
+      //
+      // Use "getInvoice" (single unnamed tuple → named components object) NOT "invoices"
+      // (public mapping getter with 8 top-level named outputs). Viem v2 decodes multiple
+      // top-level outputs as an ARRAY, so raw.issuer would be undefined and we'd always
+      // get a false "not found" error. A single tuple output decodes as a named object.
+      //
+      // ANY failure here BLOCKS the transaction — we never silently fall through.
+      let onChainIssuer: string
+
+      try {
+        const inv = await publicClient.readContract({
+          address: contractAddress,
+          abi: InvoiceNFTABI,
+          functionName: "getInvoice",
+          args: [BigInt(selectedInvoice.tokenId)],
+        }) as {
+          dataCommitment: `0x${string}`
+          amountCommitment: `0x${string}`
+          dueDate: bigint
+          createdAt: bigint
+          issuer: `0x${string}`
+          status: number
+          riskScore: number
+          paymentProbability: number
+        }
+
+        const issuerFromChain = inv?.issuer
+
+        if (!issuerFromChain || issuerFromChain === "0x0000000000000000000000000000000000000000") {
+          throw new Error(
+            `Invoice #${selectedInvoice.tokenId} returned an empty issuer — ` +
+            `it may not exist or the RPC is lagging.`
+          )
+        }
+        onChainIssuer = issuerFromChain.toLowerCase()
+      } catch (readErr) {
+        const msg = readErr instanceof Error ? readErr.message : String(readErr)
+        setPreflightError(
+          `Cannot verify ownership on-chain: ${msg.slice(0, 250)}. ` +
+          `Check your network connection and try again.`
+        )
+        return
       }
+
+      if (onChainIssuer !== currentAddress.toLowerCase()) {
+        setPreflightError(
+          `Wallet mismatch — Invoice #${selectedInvoice.tokenId} was minted by ` +
+          `${onChainIssuer.slice(0, 6)}…${onChainIssuer.slice(-4)}, ` +
+          `but your connected wallet is ${currentAddress.slice(0, 6)}…${currentAddress.slice(-4)}. ` +
+          `Switch to the wallet that originally minted this invoice.`
+        )
+        return
+      }
+
+      // ── Gas estimation ──────────────────────────────────────────────────────
+      // Try official RPC estimation first (adds +30% safety buffer).
+      // Fall back to hardcoded constant if estimation fails — this is expected on
+      // Mantle Sepolia's thirdweb RPC which doesn't fully support eth_estimateGas.
+      // Providing explicit gas also bypasses MetaMask's own pre-send simulation on
+      // broken RPC nodes (which ignores `from`, sees msg.sender=0x0, and falsely
+      // predicts a revert).
+      let gasLimit = AUTHORIZE_GAS
+      try {
+        const est = await publicClient.estimateContractGas({
+          address: contractAddress,
+          abi: InvoiceNFTABI,
+          functionName: "authorizeReveal",
+          args: [BigInt(selectedInvoice.tokenId), newAddress as Address],
+          account: currentAddress as Address,
+        })
+        gasLimit = (est * 130n) / 100n
+      } catch {
+        // Estimation failed — use the safe hardcoded constant
+      }
+
+      // ── Broadcast ────────────────────────────────────────────────────────────
+      // No simulateContract: Mantle Sepolia RPC ignores `from` in eth_call,
+      // so simulation always sees msg.sender=address(0) and reverts even for
+      // legitimate callers. The strict pre-flight above is our correctness gate.
+      writeContract({
+        address: contractAddress,
+        abi: InvoiceNFTABI,
+        functionName: "authorizeReveal",
+        args: [BigInt(selectedInvoice.tokenId), newAddress as Address],
+        gas: gasLimit,
+      })
+    } finally {
+      setIsSubmitting(false)
     }
-  }, [isSuccess, selectedInvoice, newAddress])
+  }
+
+  // ─── Post-success ─────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!isSuccess || !txHash) return
+
+    const invoiceId = selectedInvoice?.tokenId
+    toast.success("Address authorized", {
+      description: `${newAddress.slice(0, 6)}…${newAddress.slice(-4)} can now verify Invoice #${invoiceId}`,
+      action: {
+        label: "View tx",
+        onClick: () =>
+          window.open(`${EXPLORER}/tx/${txHash}`, "_blank", "noopener,noreferrer"),
+      },
+    })
+
+    setDialogOpen(false)
+    setNewAddress("")
+    setPreflightError(null)
+
+    // Optimistic update — increment authorized count
+    if (invoiceId) {
+      setInvoices((prev) =>
+        prev.map((inv) =>
+          inv.tokenId === invoiceId
+            ? { ...inv, authorizedCount: inv.authorizedCount + 1 }
+            : inv
+        )
+      )
+    }
+  }, [isSuccess, txHash]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Dialog helpers ───────────────────────────────────────────────────────
+
+  const openDialog = (invoice: InvoicePrivacy) => {
+    resetWrite()
+    setSelectedInvoice(invoice)
+    setNewAddress("")
+    setPreflightError(null)
+    setDialogOpen(true)
+  }
+
+  const closeDialog = () => {
+    setDialogOpen(false)
+    setPreflightError(null)
+    setNewAddress("")
+  }
+
+  const copyCommitment = (commitment: string, tokenId: string) => {
+    navigator.clipboard.writeText(commitment)
+    setCopiedId(tokenId)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  // ─── Error classification ─────────────────────────────────────────────────
+
+  // A MetaMask simulation warning occurs when the node ignores `from` in eth_call
+  // and wrongly predicts a revert. The tx WILL succeed if the pre-flight passed.
+  const isMetaMaskSimWarning =
+    !!writeError &&
+    !preflightError &&
+    (writeError.message?.includes("Not token owner") ||
+      writeError.message?.includes("execution reverted") ||
+      writeError.message?.includes("EstimateGasExecutionError"))
+
+  const isUserRejected =
+    !!writeError &&
+    writeError.message?.toLowerCase().includes("user rejected")
+
+  const displayError =
+    preflightError ??
+    (writeError && !isMetaMaskSimWarning && !isUserRejected
+      ? writeError.message?.slice(0, 300)
+      : null)
+
+  const isBusy = isSubmitting || isPending || isConfirming
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] bg-grid noise-overlay scan-line pb-8">
@@ -155,13 +430,26 @@ export default function IssuerDashboardPage() {
               Manage who can access your invoice details
             </p>
           </div>
-          <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-            <Lock className="w-3 h-3 mr-2" />
-            {invoices.length} Invoice{invoices.length !== 1 ? 's' : ''} Protected
-          </Badge>
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+              <Lock className="w-3 h-3 mr-2" />
+              {invoices.length} Invoice{invoices.length !== 1 ? "s" : ""} Protected
+            </Badge>
+            {isConnected && !isLoading && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-glass-border"
+                onClick={fetchUserInvoices}
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Refresh
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Privacy Explainer */}
+        {/* Privacy explainer */}
         <Card className="glass border-glass-border p-6 mb-8">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center flex-shrink-0">
@@ -171,7 +459,8 @@ export default function IssuerDashboardPage() {
               <h3 className="font-semibold mb-2">Your Data Stays Private</h3>
               <p className="text-sm text-muted-foreground mb-3">
                 Invoice details are stored as cryptographic commitment hashes on-chain.
-                Only you can authorize specific parties to verify the underlying data.
+                Only you — as the original issuer — can authorize specific parties to
+                verify the underlying data.
               </p>
               <div className="flex flex-wrap gap-4 text-xs">
                 <div className="flex items-center gap-2 text-muted-foreground">
@@ -195,36 +484,61 @@ export default function IssuerDashboardPage() {
           </div>
         </Card>
 
-        {/* Loading State */}
+        {/* Loading */}
         {isConnected && isLoading && (
           <Card className="glass border-glass-border p-12 text-center">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
-            <p className="text-muted-foreground">Loading your invoices...</p>
+            <p className="text-muted-foreground">Loading your invoices…</p>
           </Card>
         )}
 
-        {/* Not Connected State */}
+        {/* Fetch error */}
+        {isConnected && !isLoading && fetchError && (
+          <Card className="glass border-glass-border p-8">
+            <div className="flex items-start gap-3 text-destructive">
+              <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium mb-1">Failed to load invoices</p>
+                <p className="text-sm text-muted-foreground">{fetchError}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 border-glass-border"
+                  onClick={fetchUserInvoices}
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Try again
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Not connected */}
         {!isConnected && (
           <Card className="glass border-glass-border p-12 text-center">
             <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
               <Lock className="w-8 h-8 text-muted-foreground" />
             </div>
             <h3 className="text-xl font-semibold mb-2">Connect Your Wallet</h3>
-            <p className="text-muted-foreground mb-4">
-              Connect your wallet to view and manage your invoice privacy settings
+            <p className="text-muted-foreground">
+              Connect the wallet you used to mint your invoices
             </p>
           </Card>
         )}
 
-        {/* No Invoices State */}
-        {isConnected && !isLoading && invoices.length === 0 && (
+        {/* No invoices */}
+        {isConnected && !isLoading && !fetchError && invoices.length === 0 && (
           <Card className="glass border-glass-border p-12 text-center">
             <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
               <FileText className="w-8 h-8 text-muted-foreground" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">No Invoices Yet</h3>
-            <p className="text-muted-foreground mb-4">
-              Mint your first invoice to start managing privacy settings
+            <h3 className="text-xl font-semibold mb-2">No Invoices Found</h3>
+            <p className="text-muted-foreground mb-2">
+              No active invoices were minted by this wallet.
+            </p>
+            <p className="text-xs text-muted-foreground mb-6">
+              Connected: {address?.slice(0, 6)}…{address?.slice(-4)}
             </p>
             <Button asChild className="bg-gradient-to-r from-primary to-accent">
               <a href="/dashboard/mint">Mint Invoice</a>
@@ -232,82 +546,81 @@ export default function IssuerDashboardPage() {
           </Card>
         )}
 
-        {/* Invoices Table */}
-        {isConnected && invoices.length > 0 && (
+        {/* Invoices table */}
+        {isConnected && !isLoading && !fetchError && invoices.length > 0 && (
           <Card className="glass border-glass-border overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="border-glass-border hover:bg-transparent">
                   <TableHead className="text-muted-foreground">Invoice</TableHead>
                   <TableHead className="text-muted-foreground">Commitment Hash</TableHead>
-                  <TableHead className="text-muted-foreground">Privacy Status</TableHead>
+                  <TableHead className="text-muted-foreground">Status</TableHead>
                   <TableHead className="text-muted-foreground">Authorized Parties</TableHead>
                   <TableHead className="text-muted-foreground text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {invoices.map((invoice) => (
-                  <TableRow key={invoice.tokenId} className="border-glass-border hover:bg-muted/30">
+                  <TableRow
+                    key={invoice.tokenId}
+                    className="border-glass-border hover:bg-muted/30"
+                  >
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                           <FileText className="w-4 h-4 text-primary" />
                         </div>
-                        <span className="font-medium">#{invoice.tokenId}</span>
+                        <div>
+                          <span className="font-medium">#{invoice.tokenId}</span>
+                          <div className="text-[10px] text-muted-foreground">
+                            {invoice.status === 1 ? "In Yield" : "Active"}
+                          </div>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <code className="text-xs text-muted-foreground font-mono">
-                          {invoice.dataCommitment.slice(0, 10)}...{invoice.dataCommitment.slice(-8)}
+                          {invoice.dataCommitment.slice(0, 10)}…
+                          {invoice.dataCommitment.slice(-8)}
                         </code>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
-                          onClick={() => copyCommitment(invoice.dataCommitment)}
+                          onClick={() =>
+                            copyCommitment(invoice.dataCommitment, invoice.tokenId)
+                          }
                         >
-                          {copied ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
+                          {copiedId === invoice.tokenId ? (
+                            <Check className="w-3 h-3 text-success" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
                         </Button>
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={invoice.isRevealed
-                          ? "border-warning/30 bg-warning/10 text-warning"
-                          : "border-success/30 bg-success/10 text-success"
-                        }
+                        className="border-success/30 bg-success/10 text-success"
                       >
-                        {invoice.isRevealed ? (
-                          <>
-                            <Eye className="w-3 h-3 mr-1" />
-                            Revealed
-                          </>
-                        ) : (
-                          <>
-                            <Lock className="w-3 h-3 mr-1" />
-                            Private
-                          </>
-                        )}
+                        <Lock className="w-3 h-3 mr-1" />
+                        Private
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {invoice.authorizedAddresses.length} address{invoice.authorizedAddresses.length !== 1 ? 'es' : ''}
-                        </span>
-                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {invoice.authorizedCount} address
+                        {invoice.authorizedCount !== 1 ? "es" : ""}
+                      </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="outline"
                         size="sm"
                         className="border-glass-border"
-                        onClick={() => {
-                          setSelectedInvoice(invoice)
-                          setAuthorizeDialogOpen(true)
-                        }}
+                        onClick={() => openDialog(invoice)}
                       >
                         <UserPlus className="w-4 h-4 mr-2" />
                         Authorize
@@ -320,7 +633,7 @@ export default function IssuerDashboardPage() {
           </Card>
         )}
 
-        {/* Info Cards */}
+        {/* Info cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
           <Card className="glass border-glass-border p-6">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
@@ -328,10 +641,10 @@ export default function IssuerDashboardPage() {
               How Commitments Work
             </h3>
             <p className="text-sm text-muted-foreground">
-              When you mint an invoice, the details are hashed into a commitment.
-              The hash is stored on-chain, but the original data stays with you.
-              To verify an invoice, you provide the original data and a salt—if the
-              hash matches, the data is authentic.
+              When you mint an invoice, the details are hashed into a commitment. The
+              hash is stored on-chain, but the original data stays with you. To verify
+              an invoice, you provide the original data and a salt — if the hash
+              matches, the data is authentic.
             </p>
           </Card>
           <Card className="glass border-glass-border p-6">
@@ -340,52 +653,180 @@ export default function IssuerDashboardPage() {
               Important
             </h3>
             <p className="text-sm text-muted-foreground">
-              Keep your invoice salt secure. Anyone with the salt and original data
-              can prove the commitment. Only authorize addresses you trust.
-              Revelations are on-chain and permanent.
+              Only the wallet that <strong>originally minted</strong> the invoice can
+              authorize reveals. Keep your salt secure — anyone with the salt and
+              original data can prove the commitment. Authorizations are on-chain and
+              permanent.
             </p>
           </Card>
         </div>
       </main>
 
       {/* Authorize Dialog */}
-      <Dialog open={authorizeDialogOpen} onOpenChange={setAuthorizeDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (!open) closeDialog()
+        }}
+      >
         <DialogContent className="glass border-glass-border">
           <DialogHeader>
             <DialogTitle>Authorize Address</DialogTitle>
             <DialogDescription>
-              Grant an address permission to verify Invoice #{selectedInvoice?.tokenId}
+              Grant an address permission to verify Invoice #
+              {selectedInvoice?.tokenId}
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Ethereum Address</label>
+              <label className="text-sm font-medium mb-2 block">
+                Ethereum Address
+              </label>
               <Input
-                placeholder="0x..."
+                placeholder="0x…"
                 value={newAddress}
-                onChange={(e) => setNewAddress(e.target.value)}
+                onChange={(e) => {
+                  setNewAddress(e.target.value)
+                  setPreflightError(null)
+                }}
                 className="font-mono"
+                disabled={isBusy}
               />
               {newAddress && !isAddress(newAddress) && (
-                <p className="text-xs text-destructive mt-1">Invalid Ethereum address</p>
+                <p className="text-xs text-destructive mt-1">
+                  Invalid Ethereum address
+                </p>
               )}
             </div>
+
+            {/* Hard error (pre-flight failure or non-simulation write error) */}
+            {displayError && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+                <XCircle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-destructive">{displayError}</p>
+              </div>
+            )}
+
+            {/* MetaMask RPC simulation warning */}
+            {isMetaMaskSimWarning && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30">
+                <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-warning space-y-1">
+                  <p className="font-medium">MetaMask shows a simulation warning</p>
+                  <p>
+                    Mantle Sepolia&apos;s RPC doesn&apos;t support simulation
+                    correctly. Your wallet ownership{" "}
+                    <strong>has been verified on-chain</strong>. Click{" "}
+                    <strong>Authorize</strong> again and if MetaMask shows
+                    &quot;transaction may fail&quot;, choose{" "}
+                    <strong>I accept the risk</strong>.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* User rejected */}
+            {isUserRejected && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-muted border border-glass-border">
+                <XCircle className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  Transaction was rejected. Click Authorize to try again.
+                </p>
+              </div>
+            )}
+
+            {/* Pending wallet signature */}
+            {isPending && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/30">
+                <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
+                <p className="text-xs text-primary">Confirm in your wallet…</p>
+              </div>
+            )}
+
+            {/* Waiting for confirmation */}
+            {isConfirming && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/30">
+                <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
+                <div className="text-xs text-primary space-y-0.5">
+                  <p>Waiting for on-chain confirmation…</p>
+                  {txHash && (
+                    <a
+                      href={`${EXPLORER}/tx/${txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 underline opacity-80"
+                    >
+                      View on Mantlescan{" "}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Success */}
+            {isSuccess && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-success/10 border border-success/30">
+                <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
+                <div className="text-xs text-success space-y-0.5">
+                  <p className="font-medium">Address authorized successfully</p>
+                  {txHash && (
+                    <a
+                      href={`${EXPLORER}/tx/${txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 underline opacity-80"
+                    >
+                      View on Mantlescan{" "}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground mb-1">What this means:</p>
-              <p>This address will be able to call verifyReveal() on-chain to confirm your invoice data is authentic.</p>
+              <p className="font-medium text-foreground mb-1">What this does:</p>
+              <p>
+                The authorized address can call{" "}
+                <code>verifyReveal()</code> on-chain to confirm your invoice data is
+                authentic. This is recorded permanently on Mantle Sepolia.
+              </p>
             </div>
           </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAuthorizeDialogOpen(false)}>
-              Cancel
-            </Button>
             <Button
-              onClick={handleAuthorize}
-              disabled={!newAddress || !isAddress(newAddress) || isPending || isConfirming}
-              className="bg-gradient-to-r from-primary to-accent"
+              variant="outline"
+              onClick={closeDialog}
+              disabled={isBusy}
             >
-              {isPending || isConfirming ? "Authorizing..." : "Authorize"}
+              {isSuccess ? "Close" : "Cancel"}
             </Button>
+            {!isSuccess && (
+              <Button
+                onClick={handleAuthorize}
+                disabled={!newAddress || !isAddress(newAddress) || isBusy}
+                className="bg-gradient-to-r from-primary to-accent"
+              >
+                {isBusy ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {isSubmitting
+                      ? "Verifying…"
+                      : isPending
+                      ? "Confirm in wallet…"
+                      : "Confirming…"}
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Authorize
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
