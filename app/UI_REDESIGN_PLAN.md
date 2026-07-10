@@ -8,7 +8,7 @@ This document defines the 5 critical UI/UX fixes with testable acceptance criter
 ## Fix 1: Remove Comparison Table from Landing Page
 
 ### Problem
-The comparison table (vasmo vs Centrifuge vs Goldfinch) adds cognitive load before users understand the product. It's too early in the journey.
+The comparison table (vopo vs Centrifuge vs Goldfinch) adds cognitive load before users understand the product. It's too early in the journey.
 
 ### Changes Required
 - Remove the "Why Privacy Matters" section with comparison table

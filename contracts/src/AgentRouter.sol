@@ -6,9 +6,9 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./InvoiceNFT.sol";
 import "./YieldVault.sol";
 
-/// @title VasmoAgent - Executes AI agent decisions on-chain
+/// @title VopoAgent - Executes AI agent decisions on-chain
 /// @notice Routes agent actions to appropriate contracts
-/// @dev Part of vasmo Protocol - Agent service calls this contract to execute yield strategies
+/// @dev Part of vopo Protocol - Agent service calls this contract to execute yield strategies
 contract AgentRouter is Ownable, Pausable {
     // ============ Structs ============
 

@@ -1,6 +1,6 @@
-# vasmo Frontend
+# vopo Frontend
 
-Next.js frontend for vasmo, built for Mantle Sepolia and ready for public deployment.
+Next.js frontend for vopo, built for Mantle Sepolia and ready for public deployment.
 
 ## What this app does
 

@@ -1,5 +1,5 @@
 /**
- * Button Component - vasmo Design System v1.0
+ * Button Component - vopo Design System v1.0
  *
  * Professional button variants following design system
  * NO gradients, NO scale animations, NO gimmicks

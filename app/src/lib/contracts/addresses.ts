@@ -1,4 +1,4 @@
-// Contract addresses for vasmo - Multichain
+// Contract addresses for vopo - Multichain
 import { isAddress } from 'viem'
 
 export const CHAIN_IDS = {

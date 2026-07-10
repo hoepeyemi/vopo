@@ -1,7 +1,7 @@
 {
-  "name": "vasmo-agent",
+  "name": "vopo-agent",
   "version": "1.0.0",
-  "description": "vasmo - Autonomous AI agent for invoice yield optimization",
+  "description": "vopo - Autonomous AI agent for invoice yield optimization",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

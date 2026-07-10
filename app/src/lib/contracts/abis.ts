@@ -1,4 +1,4 @@
-// Contract ABIs for vasmo
+// Contract ABIs for vopo
 // Generated from contracts/src/*.sol
 
 export const InvoiceNFTABI = [

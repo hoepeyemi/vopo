@@ -1,12 +1,12 @@
-# vasmo Contracts
+# vopo Contracts
 
-Hardhat workspace for the vasmo protocol contracts on Mantle Sepolia.
+Hardhat workspace for the vopo protocol contracts on Mantle Sepolia.
 
 ## What is deployed
 
 The live deployment is on Mantle Sepolia and the deployed addresses are recorded in:
 
-- [`contracts/deployments/mantleSepolia.json`](C:/Users/jwavo/vasmo/contracts/deployments/mantleSepolia.json)
+- [`contracts/deployments/mantleSepolia.json`](C:/Users/jwavo/vopo/contracts/deployments/mantleSepolia.json)
 
 ## Deployed and verified contracts
 

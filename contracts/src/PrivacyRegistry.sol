@@ -4,9 +4,9 @@ pragma solidity ^0.8.26;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
-/// @title VasmoPrivacy - Cryptographic commitments and Merkle proofs for invoice privacy
+/// @title VopoPrivacy - Cryptographic commitments and Merkle proofs for invoice privacy
 /// @notice Enables privacy-preserving verification of invoice data
-/// @dev Part of vasmo Protocol - Uses hash commitments and Merkle trees for selective disclosure
+/// @dev Part of vopo Protocol - Uses hash commitments and Merkle trees for selective disclosure
 contract PrivacyRegistry is Ownable {
     // ============ Structs ============
 

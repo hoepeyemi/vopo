@@ -183,7 +183,7 @@ export const useUIStore = create<UIStore>()(
         }),
     })),
     {
-      name: 'vasmo-ui-storage',
+      name: 'vopo-ui-storage',
       // Only persist preferences (not modal state or filters)
       partialize: (state) => ({ preferences: state.preferences }),
     }

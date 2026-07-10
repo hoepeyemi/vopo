@@ -1,6 +1,6 @@
-# vasmo Agent
+# vopo Agent
 
-The vasmo agent monitors the Mantle Sepolia deployment, analyzes invoice and yield state, and can trigger on-chain strategy updates through `AgentRouter`.
+The vopo agent monitors the Mantle Sepolia deployment, analyzes invoice and yield state, and can trigger on-chain strategy updates through `AgentRouter`.
 
 ## What the agent does
 
@@ -30,13 +30,13 @@ pnpm dev
 Build from the repo root:
 
 ```bash
-docker build -f Dockerfile.mcp -t vasmo-agent .
+docker build -f Dockerfile.mcp -t vopo-agent .
 ```
 
 Run the container:
 
 ```bash
-docker run -p 8080:8080 --env-file .env.local vasmo-agent
+docker run -p 8080:8080 --env-file .env.local vopo-agent
 ```
 
 ## Required environment variables
@@ -57,7 +57,7 @@ QWEN_API_KEY=sk-...
 
 If you use the live deployment manifest, the agent can read the Mantle Sepolia defaults from:
 
-- [`contracts/deployments/mantleSepolia.json`](C:/Users/jwavo/vasmo/contracts/deployments/mantleSepolia.json)
+- [`contracts/deployments/mantleSepolia.json`](C:/Users/jwavo/vopo/contracts/deployments/mantleSepolia.json)
 
 ## WebSocket API
 
@@ -77,5 +77,5 @@ The agent broadcasts analysis, execution, and error messages to the frontend das
 
 See:
 
-- [`agent/DEPLOYMENT.md`](C:/Users/jwavo/vasmo/agent/DEPLOYMENT.md)
-- [`.github/workflows/ci.yml`](C:/Users/jwavo/vasmo/.github/workflows/ci.yml)
+- [`agent/DEPLOYMENT.md`](C:/Users/jwavo/vopo/agent/DEPLOYMENT.md)
+- [`.github/workflows/ci.yml`](C:/Users/jwavo/vopo/.github/workflows/ci.yml)

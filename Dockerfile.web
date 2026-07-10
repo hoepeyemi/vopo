@@ -10,7 +10,7 @@ COPY app/package.json ./app/package.json
 COPY agent/package.json ./agent/package.json
 COPY contracts/package.json ./contracts/package.json
 
-RUN pnpm install --frozen-lockfile --filter vasmo-app...
+RUN pnpm install --frozen-lockfile --filter vopo-app...
 
 COPY . .
 

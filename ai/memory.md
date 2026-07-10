@@ -1,4 +1,4 @@
-# vasmo Protocol - AI Memory
+# vopo Protocol - AI Memory
 
 ## What This Project Is
 
@@ -15,7 +15,7 @@ Autonomous AI Treasury Agent for B2B Commerce on Cronos. Freelancers mint invoic
 ## Architecture
 
 ```
-vasmo/
+vopo/
 ├── app/          # Next.js 15 + React 19 frontend
 ├── agent/        # TypeScript AI agent service (port 8080)
 ├── contracts/    # Solidity smart contracts (Foundry)
@@ -40,7 +40,7 @@ vasmo/
 - wagmi config is in `/app/src/lib/wagmi.ts`
 - Contract addresses centralized in `/app/src/lib/contracts/addresses.ts`
 - Agent runs as standalone Node.js service, communicates via WebSocket
-- Vercel deployment at vasmo-app.vercel.app
+- Vercel deployment at vopo-app.vercel.app
 - Has Remotion setup for potential video generation
 
 ## Gotchas & Warnings

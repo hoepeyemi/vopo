@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * vasmo Dashboard - Terminal/Bloomberg Aesthetic
+ * vopo Dashboard - Terminal/Bloomberg Aesthetic
  * Monospace, data-dense, green accents
  * ALIVE: Grid background, stagger animations, pulse effects
  */

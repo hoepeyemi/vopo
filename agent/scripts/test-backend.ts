@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 
 /**
- * vasmo - Backend Integration Test Script
+ * vopo - Backend Integration Test Script
  *
  * Tests the complete backend flow:
  * 1. Contract deployment on Anvil
@@ -350,7 +350,7 @@ async function runTests(config: TestConfig) {
 async function main() {
   console.log('\n');
   log('╔═══════════════════════════════════════════════════════════╗', colors.cyan);
-  log('║       VASMO - BACKEND INTEGRATION TESTS                  ║', colors.cyan);
+  log('║       VOPO - BACKEND INTEGRATION TESTS                  ║', colors.cyan);
   log('╚═══════════════════════════════════════════════════════════╝', colors.cyan);
 
   // Default config for local Anvil

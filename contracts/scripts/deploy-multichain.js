@@ -23,7 +23,7 @@ async function main() {
   const mockAaveAsset = process.env.MOCK_AAVE_ASSET || deploymentState.mockAaveAsset || hre.ethers.ZeroAddress;
   const wrapNativeMnt = process.env.MOCK_AAVE_WRAP_NATIVE === "true";
 
-  console.log("=== vasmo Multichain Deployment ===");
+  console.log("=== vopo Multichain Deployment ===");
   console.log("Deployer:", deployer.address);
   console.log("Chain ID:", hre.network.config.chainId || "unknown");
   console.log("Pyth Oracle:", pythAddress);

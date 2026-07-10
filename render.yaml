@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: vasmo-agent
+    name: vopo-agent
     runtime: docker
     dockerfilePath: agent/Dockerfile
     dockerContext: agent

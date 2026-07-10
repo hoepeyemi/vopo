@@ -1,4 +1,4 @@
-# vasmo Deployment Guide
+# vopo Deployment Guide
 
 This guide reflects the current Mantle Sepolia deployment, verified contracts, and Docker-based agent deployment.
 
@@ -6,7 +6,7 @@ This guide reflects the current Mantle Sepolia deployment, verified contracts, a
 
 The live Mantle Sepolia deployment is already recorded in:
 
-- [`contracts/deployments/mantleSepolia.json`](C:/Users/jwavo/vasmo/contracts/deployments/mantleSepolia.json)
+- [`contracts/deployments/mantleSepolia.json`](C:/Users/jwavo/vopo/contracts/deployments/mantleSepolia.json)
 
 To verify the deployment programmatically:
 
@@ -53,22 +53,22 @@ pnpm run docker:build:agent
 ### Run locally
 
 ```bash
-docker run -p 8080:8080 --env-file agent/.env.local vasmo-agent
+docker run -p 8080:8080 --env-file agent/.env.local vopo-agent
 ```
 
 ### GitHub Actions workflow
 
 The repo includes:
 
-- [`Dockerfile.mcp`](C:/Users/jwavo/vasmo/Dockerfile.mcp)
-- [`.github/workflows/ci.yml`](C:/Users/jwavo/vasmo/.github/workflows/ci.yml)
+- [`Dockerfile.mcp`](C:/Users/jwavo/vopo/Dockerfile.mcp)
+- [`.github/workflows/ci.yml`](C:/Users/jwavo/vopo/.github/workflows/ci.yml)
 
 The workflow:
 
 1. Builds and pushes the agent image.
 2. SSHes into an Ubuntu host.
 3. Pulls the latest agent image.
-4. Starts `vasmo-agent` on port `8080`.
+4. Starts `vopo-agent` on port `8080`.
 5. Checks `/health` on the agent service.
 
 ## 4. User-facing checklist

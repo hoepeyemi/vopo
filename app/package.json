@@ -1,5 +1,5 @@
 {
-  "name": "vasmo-app",
+  "name": "vopo-app",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "remotion:preview": "remotion preview src/remotion/index.ts",
-    "remotion:render": "remotion render src/remotion/index.ts VasmoDemo out/demo.mp4"
+    "remotion:render": "remotion render src/remotion/index.ts VopoDemo out/demo.mp4"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -5,9 +5,9 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @title VasmoNFT - Tokenized Invoice as RWA
+/// @title VopoNFT - Tokenized Invoice as RWA
 /// @notice ERC721 representing tokenized invoices with privacy-preserving commitments
-/// @dev Invoice data is stored as commitments (hashes) for privacy - Part of vasmo Protocol
+/// @dev Invoice data is stored as commitments (hashes) for privacy - Part of vopo Protocol
 contract InvoiceNFT is ERC721, ERC721Enumerable, Ownable {
     // ============ Structs ============
 
@@ -71,7 +71,7 @@ contract InvoiceNFT is ERC721, ERC721Enumerable, Ownable {
 
     // ============ Constructor ============
 
-    constructor() ERC721("Vasmo Invoice", "VASMO") Ownable(msg.sender) {}
+    constructor() ERC721("Vopo Invoice", "VOPO") Ownable(msg.sender) {}
 
     // ============ Admin Functions ============
 

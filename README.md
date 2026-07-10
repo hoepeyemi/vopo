@@ -1,11 +1,11 @@
-# vasmo
+# vopo
 
 > Autonomous AI treasury for B2B invoices on Mantle Sepolia
 
-vasmo turns invoices into on-chain assets, lets users mint and manage them in the frontend, and lets an AI agent monitor and execute strategy changes on-chain through the deployed contracts.
+vopo turns invoices into on-chain assets, lets users mint and manage them in the frontend, and lets an AI agent monitor and execute strategy changes on-chain through the deployed contracts.
 
 Live demo:
-- [Frontend](https://vasmo.netlify.app/)
+- [Frontend](https://vopo.netlify.app/)
 
 ## Submission checklist
 
@@ -17,7 +17,7 @@ Live demo:
 - Demo video should be at least 2 minutes and walk through the core use case
 - README documents setup, architecture, and deployed addresses
 
-## What vasmo does
+## What vopo does
 
 1. User connects a wallet on Mantle Sepolia.
 2. User mints an invoice NFT.
@@ -46,7 +46,7 @@ Chain ID: `5003`
 | AaveV3YieldSource | `0x413FbA572293494972636975BEe37477dB405652` | Verified |
 
 Deployment manifest:
-- [`contracts/deployments/mantleSepolia.json`](C:/Users/jwavo/vasmo/contracts/deployments/mantleSepolia.json)
+- [`contracts/deployments/mantleSepolia.json`](C:/Users/jwavo/vopo/contracts/deployments/mantleSepolia.json)
 
 Explorer:
 - [Mantle Sepolia Explorer](https://explorer.sepolia.mantle.xyz)
@@ -93,8 +93,8 @@ npm run verify:mantle-sepolia
 
 ## Docker deployment
 
-- [`Dockerfile.mcp`](C:/Users/jwavo/vasmo/Dockerfile.mcp) builds the agent image
-- [`.github/workflows/ci.yml`](C:/Users/jwavo/vasmo/.github/workflows/ci.yml) handles agent tests and Docker deployment
+- [`Dockerfile.mcp`](C:/Users/jwavo/vopo/Dockerfile.mcp) builds the agent image
+- [`.github/workflows/ci.yml`](C:/Users/jwavo/vopo/.github/workflows/ci.yml) handles agent tests and Docker deployment
 
 Local build:
 

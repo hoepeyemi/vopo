@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "./InvoiceNFT.sol";
 
-/// @title VasmoVault - Manages yield strategies for tokenized invoices
+/// @title VopoVault - Manages yield strategies for tokenized invoices
 /// @notice Holds invoice NFTs and simulates yield accrual based on strategies
-/// @dev Part of vasmo Protocol - In production, integrates with Aave V3
+/// @dev Part of vopo Protocol - In production, integrates with Aave V3
 contract YieldVault is Ownable, ReentrancyGuard, Pausable, IERC721Receiver {
     // ============ Enums ============
 

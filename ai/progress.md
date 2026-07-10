@@ -1,4 +1,4 @@
-# vasmo - Progress
+# vopo - Progress
 
 ## Current State (2026-03-27)
 Deployed to Base Sepolia. All flows verified on-chain and in UI. Agent runs with real Pyth + Claude analysis.
@@ -24,7 +24,7 @@ Deployed to Base Sepolia. All flows verified on-chain and in UI. Agent runs with
 - Landing page renders with terminal aesthetic
 - Dashboard shows portfolio stats from on-chain data
 - Agent page shows ONLINE status, LIVE activity feed
-- basePath issue fixed (was serving under /vasmo/ prefix from GitHub Pages config)
+- basePath issue fixed (was serving under /vopo/ prefix from GitHub Pages config)
 
 ## Deployed Addresses (Base Sepolia)
 ```

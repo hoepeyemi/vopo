@@ -1,4 +1,4 @@
-# vasmo Agent Service - Production Dockerfile
+# vopo Agent Service - Production Dockerfile
 
 FROM node:20-alpine AS base
 

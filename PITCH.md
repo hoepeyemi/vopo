@@ -1,8 +1,8 @@
-# vasmo
+# vopo
 
 > Turn Invoices into Yield. Automatically.
 
-**GitHub:** https://github.com/Yonkoo11/vasmo
+**GitHub:** https://github.com/Yonkoo11/vopo
 
 ---
 
@@ -16,7 +16,7 @@ B2B freelancers, consultants, and agencies routinely wait **30-90 days** for inv
 
 ## The Solution
 
-**vasmo** lets crypto-native freelancers earn DeFi yield on unpaid invoices while they wait for payment.
+**vopo** lets crypto-native freelancers earn DeFi yield on unpaid invoices while they wait for payment.
 
 ```
 Mint Invoice -> Deposit to Vault -> Earn Yield -> Withdraw When Paid
@@ -113,7 +113,7 @@ Invoice details never go on-chain. Only cryptographic commitments are stored, en
 
 ## Links
 
-- **GitHub:** https://github.com/Yonkoo11/vasmo
+- **GitHub:** https://github.com/Yonkoo11/vopo
 
 ---
 

@@ -111,7 +111,7 @@ export function InvoiceForm() {
       // Warn in development about security limitation
       if (process.env.NODE_ENV === 'development') {
         console.warn(
-          '[vasmo Security] Invoice salt stored in localStorage. ' +
+          '[vopo Security] Invoice salt stored in localStorage. ' +
           'For production, implement encrypted storage or server-side solution.'
         );
       }

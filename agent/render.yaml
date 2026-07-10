@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: vasmo-agent
+    name: vopo-agent
     env: node
     region: oregon
     plan: free

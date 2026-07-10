@@ -5,7 +5,7 @@ import { LiveBackground } from "@/components/live-background";
 import { ClientOnlyProviders } from "@/components/client-only-providers";
 
 export const metadata: Metadata = {
-  title: "vasmo - AI Treasury Agent",
+  title: "vopo - AI Treasury Agent",
   description: "Autonomous AI manages your invoices 24/7. Tokenize, optimize yield, settle via x402.",
 };
 

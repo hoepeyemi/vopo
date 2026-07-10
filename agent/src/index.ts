@@ -3,7 +3,7 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
-import { VasmoAgent } from './agent.js';
+import { VopoAgent } from './agent.js';
 import { ContractAddresses } from './blockchain.js';
 import { AGENT_THRESHOLDS, ANALYSIS_INTERVAL_MS } from './constants.js';
 
@@ -217,7 +217,7 @@ async function main() {
   }
 
   // Create agent instance
-  const agent = new VasmoAgent(RPC_URL, ADDRESSES, {
+  const agent = new VopoAgent(RPC_URL, ADDRESSES, {
     privateKey: PRIVATE_KEY,
     qwenApiKey: QWEN_API_KEY,
     wsPort: WS_PORT,

@@ -10,7 +10,7 @@
 import { WorkingMemoryState } from './types.js';
 
 const MAX_RECENT_DECISIONS = 20;
-const REDIS_KEY = 'vasmo:working-memory';
+const REDIS_KEY = 'vopo:working-memory';
 const REDIS_TTL_SECONDS = 3600; // expire orphaned state after 1 hour
 
 export class L1WorkingMemory {

@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   // Only use static export + basePath for GitHub Pages deployment
   ...(isGitHubPages ? {
     output: "export",
-    basePath: "/vasmo",
+    basePath: "/vopo",
   } : {
     output: "standalone",
   }),

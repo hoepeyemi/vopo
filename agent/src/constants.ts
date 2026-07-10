@@ -1,4 +1,4 @@
-// Centralized constants for vasmo Agent
+// Centralized constants for vopo Agent
 
 /**
  * Human-readable strategy names indexed by Strategy enum value.

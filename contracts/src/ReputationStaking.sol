@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title ReputationStaking - Fraud prevention through economic incentives
 /// @notice Issuers stake collateral to unlock invoice minting; slashed for fraud
-/// @dev Part of vasmo's Trust Layer - creates skin in the game
+/// @dev Part of vopo's Trust Layer - creates skin in the game
 contract ReputationStaking is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 

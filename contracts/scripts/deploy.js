@@ -2,7 +2,7 @@ const hre = require("hardhat");
 
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
-  console.log("Deploying vasmo contracts locally with deployer:", deployer.address);
+  console.log("Deploying vopo contracts locally with deployer:", deployer.address);
 
   const InvoiceNFT = await hre.ethers.getContractFactory("InvoiceNFT");
   const YieldVault = await hre.ethers.getContractFactory("YieldVault");

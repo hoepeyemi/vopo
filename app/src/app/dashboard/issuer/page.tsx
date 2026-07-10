@@ -92,9 +92,13 @@ export default function IssuerDashboardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  // Keep a ref to always-current address so async closures don't capture a stale value
+  // Live wallet address ref — async preflight reads this instead of the closed-over value
   const addressRef = useRef(address)
   useEffect(() => { addressRef.current = address }, [address])
+
+  // Snapshot of what was submitted — captured at writeContract() call time so the
+  // success toast is correct even if the user closes the dialog while confirming.
+  const submittedRef = useRef<{ address: string; invoiceId: string } | null>(null)
 
   const {
     writeContract,
@@ -319,6 +323,13 @@ export default function IssuerDashboardPage() {
         // Estimation failed — use the safe hardcoded constant
       }
 
+      // Snapshot submitted values before writeContract so the success toast stays
+      // accurate even if the user closes the dialog while the tx is confirming.
+      submittedRef.current = {
+        address: newAddress,
+        invoiceId: selectedInvoice.tokenId,
+      }
+
       // ── Broadcast ────────────────────────────────────────────────────────────
       // No simulateContract: Mantle Sepolia RPC ignores `from` in eth_call,
       // so simulation always sees msg.sender=address(0) and reverts even for
@@ -340,9 +351,15 @@ export default function IssuerDashboardPage() {
   useEffect(() => {
     if (!isSuccess || !txHash) return
 
-    const invoiceId = selectedInvoice?.tokenId
+    // Use the ref snapshot — immune to dialog close clearing newAddress/selectedInvoice
+    const submitted = submittedRef.current
+    const invoiceId = submitted?.invoiceId
+    const authorizedAddr = submitted?.address ?? ""
+
     toast.success("Address authorized", {
-      description: `${newAddress.slice(0, 6)}…${newAddress.slice(-4)} can now verify Invoice #${invoiceId}`,
+      description: authorizedAddr
+        ? `${authorizedAddr.slice(0, 6)}…${authorizedAddr.slice(-4)} can now verify Invoice #${invoiceId}`
+        : `Invoice #${invoiceId} authorization confirmed`,
       action: {
         label: "View tx",
         onClick: () =>
@@ -364,7 +381,7 @@ export default function IssuerDashboardPage() {
         )
       )
     }
-  }, [isSuccess, txHash]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isSuccess, txHash])
 
   // ─── Dialog helpers ───────────────────────────────────────────────────────
 

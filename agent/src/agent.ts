@@ -39,7 +39,7 @@ function deriveRiskMetrics(daysUntilDue: number): { riskScore: number; paymentPr
   return { riskScore: 30, paymentProbability: 25 }; // overdue
 }
 
-export class VasmoAgent {
+export class VopoAgent {
   private blockchain: BlockchainService;
   private llm: LLMService;
   private ws: AgentWebSocket;
@@ -131,7 +131,7 @@ export class VasmoAgent {
     }
 
     // Clear any stale module-level state from a previous run in this process
-    // (hot-reload, test harness, or multiple VasmoAgent instances).
+    // (hot-reload, test harness, or multiple VopoAgent instances).
     resetOptimizerState();
 
     // Start memory maintenance (decay, prune, condense) in the background

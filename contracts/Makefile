@@ -1,9 +1,9 @@
-# vasmo Contracts Makefile
+# vopo Contracts Makefile
 
 .PHONY: help setup build test clean deploy-local deploy-factory deploy-multichain
 
 help:
-	@echo "vasmo Contracts"
+	@echo "vopo Contracts"
 	@echo ""
 	@echo "Setup:"
 	@echo "  make setup          - Install dependencies"
@@ -15,7 +15,7 @@ help:
 	@echo ""
 	@echo "Deployment:"
 	@echo "  make deploy-local    - Deploy core contracts on Hardhat network"
-	@echo "  make deploy-factory  - Deploy via VasmoFactory"
+	@echo "  make deploy-factory  - Deploy via VopoFactory"
 	@echo "  make deploy-multichain - Deploy with optional Pyth/Aave config"
 
 setup:

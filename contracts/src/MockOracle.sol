@@ -4,9 +4,9 @@ pragma solidity ^0.8.26;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./InvoiceNFT.sol";
 
-/// @title VasmoOracle - Simulated oracle for invoice risk assessment
+/// @title VopoOracle - Simulated oracle for invoice risk assessment
 /// @notice Provides mock risk scores and payment probabilities for demo
-/// @dev Part of vasmo Protocol - Production integrates with RedStone on Mantle
+/// @dev Part of vopo Protocol - Production integrates with RedStone on Mantle
 contract MockOracle is Ownable {
     // ============ Structs ============
 

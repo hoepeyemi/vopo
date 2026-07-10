@@ -10,7 +10,7 @@ interface PendingTransaction {
   description: string
 }
 
-const STORAGE_KEY = 'vasmo_pending_txs'
+const STORAGE_KEY = 'vopo_pending_txs'
 const TX_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
 export function usePendingTransactions() {

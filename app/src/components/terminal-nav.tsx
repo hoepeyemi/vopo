@@ -44,7 +44,7 @@ export function TerminalNav() {
         <Link href="/" className="flex items-center gap-2">
           <div className="w-5 h-5 bg-[#10b981] rounded" />
           <span className="font-semibold text-sm">
-            <span className="text-[#10b981]">v</span>asmo
+            <span className="text-[#10b981]">v</span>opo
           </span>
         </Link>
 

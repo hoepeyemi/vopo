@@ -133,7 +133,7 @@ function InvoiceDetailContent() {
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.25em] text-[#666666] mb-2">
-                    vasmo invoice #{tokenId}
+                    vopo invoice #{tokenId}
                   </div>
                   <h1 className="text-2xl font-bold text-[#10b981]">
                     {deposit?.active ? "Earning Yield" : invoice.statusLabel}

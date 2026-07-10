@@ -9,7 +9,7 @@ export function ThemeToggle() {
   const [isDark, setIsDark] = useState<boolean | null>(null)
 
   useEffect(() => {
-    const stored = localStorage.getItem('vasmo-theme')
+    const stored = localStorage.getItem('vopo-theme')
     const dark = stored !== 'light'
     setIsDark(dark)
     if (!dark) document.documentElement.classList.add('light-mode')
@@ -21,10 +21,10 @@ export function ThemeToggle() {
 
     if (newIsDark) {
       document.documentElement.classList.remove('light-mode')
-      localStorage.setItem('vasmo-theme', 'dark')
+      localStorage.setItem('vopo-theme', 'dark')
     } else {
       document.documentElement.classList.add('light-mode')
-      localStorage.setItem('vasmo-theme', 'light')
+      localStorage.setItem('vopo-theme', 'light')
     }
   }
 

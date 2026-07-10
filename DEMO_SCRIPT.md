@@ -1,4 +1,4 @@
-# vasmo Demo Script (2 minutes)
+# vopo Demo Script (2 minutes)
 
 ## Setup Before Recording
 - Open the app in browser
@@ -11,7 +11,7 @@
 
 ### 1. Hook (15 sec)
 **Show landing page**
-> "Businesses have $3 trillion locked in unpaid invoices. What if you could earn real DeFi yield on that money while you wait to get paid? That's vasmo."
+> "Businesses have $3 trillion locked in unpaid invoices. What if you could earn real DeFi yield on that money while you wait to get paid? That's vopo."
 
 ### 2. Connect + Chain Selection (10 sec)
 **Connect wallet, show chain switcher**
@@ -30,7 +30,7 @@
 > "The AI agent monitors everything 24/7. It checks market conditions via Pyth, analyzes risk scores, and auto-adjusts strategies. Watch it work in real time."
 
 ### 6. Close (15 sec)
-> "vasmo: real yield on real invoices, across 4 chains. Built with Aave V3, Pyth oracles, and an autonomous AI agent."
+> "vopo: real yield on real invoices, across 4 chains. Built with Aave V3, Pyth oracles, and an autonomous AI agent."
 
 ---
 

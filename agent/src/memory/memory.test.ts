@@ -9,7 +9,7 @@ import { LogEpisodeParams } from './types.js';
 // Each test suite gets its own temp directory so tests are fully isolated
 // and never touch the real data/ directory.
 function makeTmpDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'vasmo-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'vopo-test-'));
 }
 
 function rmDir(dir: string): void {

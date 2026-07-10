@@ -9,23 +9,23 @@
 ## Page 1: Project Overview
 
 ### Project Name
-vasmo
+vopo
 
 ### Project X Handle
 @soligxbt
 
 ### Github Repository
-https://github.com/Yonkoo11/vasmo
+https://github.com/Yonkoo11/vopo
 
 ### Brief description of your project
 
-vasmo is an autonomous treasury agent for crypto freelancers. You create an invoice, the agent tokenizes it as a privacy-preserving NFT, deposits collateral into a yield vault, and manages that idle capital until the client pays. The agent runs on a loop - it scores invoice risk, reads market conditions, picks between yield strategies, and auto-executes when it's confident enough. Below 70% confidence, it asks you first.
+vopo is an autonomous treasury agent for crypto freelancers. You create an invoice, the agent tokenizes it as a privacy-preserving NFT, deposits collateral into a yield vault, and manages that idle capital until the client pays. The agent runs on a loop - it scores invoice risk, reads market conditions, picks between yield strategies, and auto-executes when it's confident enough. Below 70% confidence, it asks you first.
 
 The stack is Solidity contracts (Foundry, all OpenZeppelin - chain-agnostic), a TypeScript agent service using Claude for reasoning, and a Next.js frontend. Contracts are deployed on Cronos testnet today, porting to Base for x402 integration.
 
 ### What problem are you solving?
 
-Crypto freelancers and small agencies carry $20-100K in unpaid invoices at any time. Net-30/60/90 terms mean that money sits dead for weeks. Most people don't optimize it because the per-invoice amounts feel too small to bother with, and manually rotating yield positions across 5-10 open invoices is tedious. The ones who do try usually just dump everything in one vault and forget about it, missing better opportunities when conditions change. vasmo's agent handles the monitoring and rebalancing work so the freelancer doesn't think about it.
+Crypto freelancers and small agencies carry $20-100K in unpaid invoices at any time. Net-30/60/90 terms mean that money sits dead for weeks. Most people don't optimize it because the per-invoice amounts feel too small to bother with, and manually rotating yield positions across 5-10 open invoices is tedious. The ones who do try usually just dump everything in one vault and forget about it, missing better opportunities when conditions change. vopo's agent handles the monitoring and rebalancing work so the freelancer doesn't think about it.
 
 ---
 
@@ -51,11 +51,11 @@ https://x.com/soligxbt
 
 ### Details of Each Team Member
 
-Alex (solo founder) - Full-stack developer shipping across DeFi, smart contracts, and AI agents. 34 public repos on GitHub. Recent work includes cipher-pol (ZK private payments for AI agents on Starknet using Groth16 proofs and x402), a Curve-style StableSwap DEX on Polkadot, an autonomous ERC-8004 trust scoring agent for Celo, and an SPL token rescue bot for compromised Solana wallets. Built vasmo end-to-end: Solidity contracts, TypeScript agent with Claude integration, and Next.js frontend.
+Alex (solo founder) - Full-stack developer shipping across DeFi, smart contracts, and AI agents. 34 public repos on GitHub. Recent work includes cipher-pol (ZK private payments for AI agents on Starknet using Groth16 proofs and x402), a Curve-style StableSwap DEX on Polkadot, an autonomous ERC-8004 trust scoring agent for Celo, and an SPL token rescue bot for compromised Solana wallets. Built vopo end-to-end: Solidity contracts, TypeScript agent with Claude integration, and Next.js frontend.
 
 ### What relevant experience does your team have?
 
-I've built and shipped across the stack that vasmo needs. On the smart contract side: DEX contracts (polkadot-stableswap), prediction markets (flashbets on Base with Chainlink), and ZK circuits (cipher-pol on Starknet). On the agent side: sentinel8004 (autonomous trust scoring agent on Celo), hermes-dojo (self-improving agent system), and vasmo's own yield agent using the Anthropic SDK. I've worked with x402 before - cipher-pol uses it for private agent payments. I build fast, ship to testnet, and iterate from there.
+I've built and shipped across the stack that vopo needs. On the smart contract side: DEX contracts (polkadot-stableswap), prediction markets (flashbets on Base with Chainlink), and ZK circuits (cipher-pol on Starknet). On the agent side: sentinel8004 (autonomous trust scoring agent on Celo), hermes-dojo (self-improving agent system), and vopo's own yield agent using the Anthropic SDK. I've worked with x402 before - cipher-pol uses it for private agent payments. I build fast, ship to testnet, and iterate from there.
 
 ---
 
@@ -136,7 +136,7 @@ $5,000
 - [ ] Push uncommitted changes to GitHub (27 files pending)
 - [ ] Verify GitHub repo is public and README looks current
 - [ ] Consider: test one Elsa x402 endpoint before submitting (strengthens credibility)
-- [ ] Review live site (vasmo-app.vercel.app) - still shows Cronos, which is fine if README explains the Base port plan
+- [ ] Review live site (vopo-app.vercel.app) - still shows Cronos, which is fine if README explains the Base port plan
 - [ ] Copy each section into the Tally form
 - [ ] Submit
 

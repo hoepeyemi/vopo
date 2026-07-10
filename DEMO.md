@@ -1,8 +1,8 @@
-# vasmo Protocol - Demo Guide
+# vopo Protocol - Demo Guide
 
 ## What Is This?
 
-vasmo lets crypto-native freelancers earn real DeFi yield on unpaid invoices while waiting for clients to pay. Not invoice factoring (we don't lend) - this is a yield optimizer for invoices you're already waiting on.
+vopo lets crypto-native freelancers earn real DeFi yield on unpaid invoices while waiting for clients to pay. Not invoice factoring (we don't lend) - this is a yield optimizer for invoices you're already waiting on.
 
 ---
 

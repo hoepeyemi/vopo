@@ -1,4 +1,4 @@
-# vasmo - Technical MVP Documentation
+# vopo - Technical MVP Documentation
 
 > Turn Invoices into Yield. Automatically.
 
@@ -33,7 +33,7 @@ Small businesses and freelancers face a $3T+ global cash flow problem: invoices 
 
 ### 1.2 Solution
 
-vasmo tokenizes invoices as Real-World Assets (RWAs) on Mantle Sepolia, then deploys an autonomous AI agent to:
+vopo tokenizes invoices as Real-World Assets (RWAs) on Mantle Sepolia, then deploys an autonomous AI agent to:
 
 - **Optimize yield** on tokenized invoices (3-8% APY)
 - **Protect privacy** using cryptographic commitments
@@ -362,7 +362,7 @@ agent/
 ### 4.2 Agent Loop
 
 ```typescript
-class VasmoAgent {
+class VopoAgent {
   async runLoop() {
     while (running) {
       // 1. Fetch active deposits

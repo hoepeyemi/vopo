@@ -1,4 +1,4 @@
-# vasmo Agent - Production Deployment Guide
+# vopo Agent - Production Deployment Guide
 
 ## Quick Deploy to Railway (Recommended)
 
@@ -7,7 +7,7 @@
 1. Go to [Railway.app](https://railway.app/)
 2. Click "Start a New Project"
 3. Select "Deploy from GitHub repo"
-4. Choose your `vasmo` repository
+4. Choose your `vopo` repository
 5. Select the `agent` directory as the root path
 
 ### Step 2: Configure Environment Variables
@@ -36,13 +36,13 @@ ANTHROPIC_API_KEY=<your-anthropic-api-key>
 1. Railway will auto-detect the `railway.toml` configuration
 2. Click "Deploy" to start the build
 3. Wait for deployment to complete (~2-3 minutes)
-4. Note the public URL (will be something like: `vasmo-agent.up.railway.app`)
+4. Note the public URL (will be something like: `vopo-agent.up.railway.app`)
 
 ### Step 4: Update Frontend
 
 Update your frontend `.env` to use the Railway URL:
 ```
-NEXT_PUBLIC_AGENT_WS_URL=wss://vasmo-agent.up.railway.app
+NEXT_PUBLIC_AGENT_WS_URL=wss://vopo-agent.up.railway.app
 ```
 
 ---
@@ -54,11 +54,11 @@ NEXT_PUBLIC_AGENT_WS_URL=wss://vasmo-agent.up.railway.app
 1. Go to [Render.com](https://render.com/)
 2. Click "New +" → "Web Service"
 3. Connect your GitHub repository
-4. Select the `vasmo` repository
+4. Select the `vopo` repository
 
 ### Step 2: Configure Service
 
-- **Name:** vasmo-agent
+- **Name:** vopo-agent
 - **Root Directory:** `agent`
 - **Environment:** Node
 - **Build Command:** `pnpm install && pnpm build`
@@ -72,7 +72,7 @@ Add the same environment variables as listed in Railway guide above.
 ### Step 4: Deploy
 
 Render will automatically deploy and provide a URL like:
-`https://vasmo-agent.onrender.com`
+`https://vopo-agent.onrender.com`
 
 ---
 
@@ -84,7 +84,7 @@ The Docker path now targets the agent service only.
 
 ```bash
 # From the repo root
-docker build -f Dockerfile.mcp -t vasmo-agent .
+docker build -f Dockerfile.mcp -t vopo-agent .
 
 # Run container
 docker run -p 8080:8080 \
@@ -94,11 +94,11 @@ docker run -p 8080:8080 \
   -e AGENT_ROUTER_ADDRESS=0x38cf9B34d8Ca1d041FfB876Bf73f8DE2Cb119E01 \
   -e PYTH_ORACLE_ADDRESS=0xD793Bb98C1B0b94E5392370d031ED76DeDeAcDd1 \
   -e AAVE_YIELD_ADDRESS=0x413FbA572293494972636975BEe37477dB405652 \
-  vasmo-agent
+  vopo-agent
 ```
 
 The production container now reads the Mantle Sepolia deployment manifest from
-[`contracts/deployments/mantleSepolia.json`](/C:/Users/jwavo/vasmo/contracts/deployments/mantleSepolia.json)
+[`contracts/deployments/mantleSepolia.json`](/C:/Users/jwavo/vopo/contracts/deployments/mantleSepolia.json)
 so you usually only need to provide RPC and private key overrides in the env file.
 
 ### Deploy to Any Cloud

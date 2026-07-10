@@ -98,7 +98,7 @@ export function CostCalculator({ className }: CostCalculatorProps) {
 
       <p className="text-xs text-muted-foreground mt-4 text-center">
         <Zap className="w-3 h-3 inline mr-1" />
-        vasmo&apos;s AI agent runs {(2880).toLocaleString()} tx/day by default
+        vopo&apos;s AI agent runs {(2880).toLocaleString()} tx/day by default
       </p>
     </Card>
   )

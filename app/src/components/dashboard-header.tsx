@@ -37,7 +37,7 @@ export function DashboardHeader() {
       previouslyConnected.current = true
     } else if (!isConnected && previouslyConnected.current) {
       toast.info("Wallet disconnected", {
-        description: "Connect your wallet to use vasmo",
+        description: "Connect your wallet to use vopo",
       })
       previouslyConnected.current = false
     }
@@ -83,8 +83,8 @@ export function DashboardHeader() {
             </button>
 
             <Link href="/" className="flex items-center gap-2">
-              <img src="/logo.svg" alt="vasmo" className="w-8 h-8" />
-              <span className="font-display font-semibold text-lg tracking-tight hidden sm:inline">vasmo</span>
+              <img src="/logo.svg" alt="vopo" className="w-8 h-8" />
+              <span className="font-display font-semibold text-lg tracking-tight hidden sm:inline">vopo</span>
             </Link>
 
             {/* Desktop Nav */}

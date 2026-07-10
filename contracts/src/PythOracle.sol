@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
 import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 
-/// @title PythOracle - Real-time oracle integration for vasmo Protocol
+/// @title PythOracle - Real-time oracle integration for vopo Protocol
 /// @notice Uses Pyth Network for real price feeds on any supported chain
 /// @dev Chain-agnostic: deployed with chain-specific Pyth contract address
 import "@openzeppelin/contracts/access/Ownable.sol";

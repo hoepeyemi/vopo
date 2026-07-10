@@ -20,7 +20,7 @@ jobs:
       HOST: ${{ secrets.SSH_HOST_TEMP }}
       HOST_USERNAME: ${{ secrets.SSH_USERNAME_TEMP }}
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_TEMP }}
-      AGENT_IMAGE: ${{ secrets.DOCKER_USERNAME_PROD }}/vasmo-agent:latest
+      AGENT_IMAGE: ${{ secrets.DOCKER_USERNAME_PROD }}/vopo-agent:latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -76,7 +76,7 @@ jobs:
             set -e
             echo "Deployment started at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
-            APP_DIR=/home/ubuntu/vasmo
+            APP_DIR=/home/ubuntu/vopo
             AGENT_ENV=$APP_DIR/.env.agent
 
             if [ ! -f "$AGENT_ENV" ]; then
@@ -85,20 +85,20 @@ jobs:
             fi
 
             echo "Creating Docker network if missing..."
-            sudo docker network create vasmo-net >/dev/null 2>&1 || true
+            sudo docker network create vopo-net >/dev/null 2>&1 || true
 
             echo "Stopping old containers..."
-            sudo docker stop vasmo-agent || true
-            sudo docker rm vasmo-agent || true
+            sudo docker stop vopo-agent || true
+            sudo docker rm vopo-agent || true
 
             echo "Pulling latest image..."
             sudo docker pull ${{ env.AGENT_IMAGE }}
 
             echo "Starting agent..."
             sudo docker run -d \
-              --name vasmo-agent \
+              --name vopo-agent \
               --restart unless-stopped \
-              --network vasmo-net \
+              --network vopo-net \
               -p 8080:8080 \
               --env-file "$AGENT_ENV" \
               ${{ env.AGENT_IMAGE }}
@@ -110,21 +110,21 @@ jobs:
               fi
               if [ "$i" -eq 24 ]; then
                 echo "Agent did not become healthy in time"
-                sudo docker logs --tail 120 vasmo-agent || true
+                sudo docker logs --tail 120 vopo-agent || true
                 exit 1
               fi
               sleep 5
             done
 
-            if ! sudo docker ps --format '{{.Names}}' | grep -q '^vasmo-agent$'; then
+            if ! sudo docker ps --format '{{.Names}}' | grep -q '^vopo-agent$'; then
               echo "Agent container failed to start"
-              sudo docker logs --tail 120 vasmo-agent || true
+              sudo docker logs --tail 120 vopo-agent || true
               exit 1
             fi
 
             echo "Agent container is running"
             echo "Agent logs:"
-            sudo docker logs --tail 30 vasmo-agent
+            sudo docker logs --tail 30 vopo-agent
             echo "Deployment completed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
       - name: Post-deploy verification
@@ -135,11 +135,11 @@ jobs:
           username: ${{ env.HOST_USERNAME }}
           key: ${{ env.SSH_PRIVATE_KEY }}
           script: |
-            if sudo docker ps --format '{{.Names}}' | grep -q '^vasmo-agent$'; then
+            if sudo docker ps --format '{{.Names}}' | grep -q '^vopo-agent$'; then
               echo "Agent container status:"
-              sudo docker inspect vasmo-agent --format='Status: {{.State.Status}} | Started At: {{.State.StartedAt}}'
-              sudo docker port vasmo-agent
+              sudo docker inspect vopo-agent --format='Status: {{.State.Status}} | Started At: {{.State.StartedAt}}'
+              sudo docker port vopo-agent
             else
-              echo "vasmo-agent is not running"
+              echo "vopo-agent is not running"
               exit 1
             fi
