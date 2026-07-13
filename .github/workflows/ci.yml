@@ -76,15 +76,9 @@ jobs:
           tags: ${{ env.APP_IMAGE }}
           cache-from: type=gha,scope=vopo-app
           cache-to: type=gha,mode=max,scope=vopo-app
-          build-args: |
-            NEXT_PUBLIC_NETWORK_MODE=testnet
-            NEXT_PUBLIC_CHAIN_ID=5003
-            NEXT_PUBLIC_MANTLE_SEPOLIA_RPC=${{ secrets.NEXT_PUBLIC_MANTLE_SEPOLIA_RPC }}
-            NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_1=https://mantle-sepolia.drpc.org
-            NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_2=https://5003.rpc.thirdweb.com/
-            NEXT_PUBLIC_AGENT_WS_URL=${{ secrets.NEXT_PUBLIC_AGENT_WS_URL }}
-            NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
-            NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=${{ secrets.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID }}
+          # No NEXT_PUBLIC_* secrets needed here — the image is built with
+          # placeholder strings; docker-entrypoint.sh replaces them at startup
+          # from the server's .env.app file.
 
       - name: Build and push agent image
         uses: docker/build-push-action@v5

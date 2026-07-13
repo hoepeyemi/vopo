@@ -8,7 +8,7 @@ RUN npm install -g pnpm@10
 
 WORKDIR /repo
 
-# Install deps first (layer-cached until lockfile changes)
+# Install deps (layer-cached until lockfile changes)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY app/package.json ./app/package.json
 COPY agent/package.json ./agent/package.json
@@ -16,31 +16,22 @@ COPY contracts/package.json ./contracts/package.json
 
 RUN pnpm install --frozen-lockfile --filter vopo-app...
 
-# Copy source
 COPY . .
 
 WORKDIR /repo/app
 
-# Build-time public env vars (baked into the JS bundle)
-ARG NEXT_PUBLIC_NETWORK_MODE=testnet
-ARG NEXT_PUBLIC_CHAIN_ID=5003
-ARG NEXT_PUBLIC_MANTLE_SEPOLIA_RPC=https://rpc.sepolia.mantle.xyz
-ARG NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_SELECTED=
-ARG NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_1=https://mantle-sepolia.drpc.org
-ARG NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_2=https://5003.rpc.thirdweb.com/
-ARG NEXT_PUBLIC_AGENT_WS_URL=ws://localhost:8080
-ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
-ARG NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
-
-ENV NEXT_PUBLIC_NETWORK_MODE=${NEXT_PUBLIC_NETWORK_MODE}
-ENV NEXT_PUBLIC_CHAIN_ID=${NEXT_PUBLIC_CHAIN_ID}
-ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC=${NEXT_PUBLIC_MANTLE_SEPOLIA_RPC}
-ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_SELECTED=${NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_SELECTED}
-ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_1=${NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_1}
-ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_2=${NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_2}
-ENV NEXT_PUBLIC_AGENT_WS_URL=${NEXT_PUBLIC_AGENT_WS_URL}
-ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
-ENV NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID}
+# All NEXT_PUBLIC_* vars are set to unique placeholder strings at build time.
+# The docker-entrypoint.sh replaces them with real values from .env.app at
+# container startup — so no NEXT_PUBLIC values need to be in GitHub secrets.
+ENV NEXT_PUBLIC_NETWORK_MODE=testnet
+ENV NEXT_PUBLIC_CHAIN_ID=5003
+ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC=__VOPO_MANTLE_RPC__
+ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_SELECTED=__VOPO_MANTLE_RPC_SEL__
+ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_1=__VOPO_MANTLE_RPC_FB1__
+ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_2=__VOPO_MANTLE_RPC_FB2__
+ENV NEXT_PUBLIC_AGENT_WS_URL=__VOPO_AGENT_WS_URL__
+ENV NEXT_PUBLIC_APP_URL=__VOPO_APP_URL__
+ENV NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=__VOPO_WC_PROJECT_ID__
 
 RUN pnpm build
 
@@ -57,17 +48,20 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-# Non-root user
 RUN groupadd --system nodejs && useradd --system --gid nodejs nextjs
-USER nextjs
 
 COPY --from=base --chown=nextjs:nodejs /repo/app/.next/standalone ./
 COPY --from=base --chown=nextjs:nodejs /repo/app/.next/static ./.next/static
 COPY --from=base --chown=nextjs:nodejs /repo/app/public ./public
+COPY --from=base --chown=nextjs:nodejs /repo/app/docker-entrypoint.sh ./docker-entrypoint.sh
+
+RUN chmod +x ./docker-entrypoint.sh
+
+USER nextjs
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/health >/dev/null 2>&1 || exit 1
 
-CMD ["node", "server.js"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
