@@ -12,6 +12,16 @@ const nextConfig: NextConfig = {
   }),
   images: { unoptimized: true },
   typescript: { ignoreBuildErrors: true },
+  webpack(config) {
+    // @wagmi/core's tempo connector does `import('accounts')` with a
+    // turbopackOptional comment that webpack doesn't understand.
+    // Stub it so webpack doesn't fail on the missing package.
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      accounts: false,
+    };
+    return config;
+  },
 };
 
 export default nextConfig;

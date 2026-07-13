@@ -1,0 +1,39 @@
+services:
+  vopo-app:
+    image: ${DOCKER_USERNAME}/vopo-app:latest
+    container_name: vopo-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file: .env.app
+    networks:
+      - vopo-net
+    depends_on:
+      vopo-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  vopo-agent:
+    image: ${DOCKER_USERNAME}/vopo-agent:latest
+    container_name: vopo-agent
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file: .env.agent
+    networks:
+      - vopo-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+networks:
+  vopo-net:
+    driver: bridge

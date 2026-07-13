@@ -1,39 +1,41 @@
-# vopo Agent Service - Production Dockerfile
+FROM node:20-slim AS base
 
-FROM node:20-alpine AS base
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
-# Install pnpm
 RUN npm install -g pnpm@10
 
 WORKDIR /app
 
-# Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile --prod=false
+RUN pnpm install --frozen-lockfile
 
-# Copy source code
 COPY . .
 
-# Build TypeScript
-RUN pnpm build
+RUN pnpm build && pnpm prune --prod
 
-# Remove dev dependencies
-RUN pnpm prune --prod
+# ── Production image ──────────────────────────────────────────────────────────
+FROM node:20-slim AS runner
 
-# Production stage
-FROM node:20-alpine
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates wget \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system nodejs && useradd --system --gid nodejs agentuser
 
 WORKDIR /app
 
-# Copy built application
-COPY --from=base /app/dist ./dist
-COPY --from=base /app/node_modules ./node_modules
-COPY --from=base /app/package.json ./
+COPY --from=base --chown=agentuser:nodejs /app/dist ./dist
+COPY --from=base --chown=agentuser:nodejs /app/node_modules ./node_modules
+COPY --from=base --chown=agentuser:nodejs /app/package.json ./
 
-# Single port for WebSocket + health check
+USER agentuser
+
 EXPOSE 8080
 
-# Run the agent service
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1 || exit 1
+
 CMD ["node", "dist/index.js"]
