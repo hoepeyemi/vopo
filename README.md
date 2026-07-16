@@ -5,7 +5,7 @@
 vopo turns invoices into on-chain assets, lets users mint and manage them in the frontend, and lets an AI agent monitor and execute strategy changes on-chain through the deployed contracts.
 
 Live demo:
-- [Frontend](https://vopo.netlify.app/)
+- [Frontend](https://vopo.eduworld.world)
 
 ## Submission checklist
 
@@ -121,6 +121,5 @@ The AI-powered path is the agent-to-contract flow:
 
 ## Notes
 
-- QuickBooks is optional and has a demo fallback if OAuth is not configured
 - The frontend is configured for Mantle Sepolia by default
 - The repo is organized for public deployment, not localhost-only usage
