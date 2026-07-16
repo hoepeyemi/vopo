@@ -5,6 +5,7 @@
 set -e
 
 CHUNK_DIR="/srv/standalone/app/.next/static/chunks"
+SERVER_DIR="/srv/standalone/app/.next/server"
 
 if [ ! -d "$CHUNK_DIR" ]; then
   echo "[entrypoint] ERROR: chunk directory not found: $CHUNK_DIR"
@@ -20,14 +21,18 @@ replace() {
     echo "[entrypoint] WARN: $label is empty — placeholder $placeholder left in bundle"
     return
   fi
-  count=$(find "$CHUNK_DIR" -name "*.js" -exec grep -l "$placeholder" {} + 2>/dev/null | wc -l)
+  # Replace in client chunks (browser JS)
+  client_count=$(find "$CHUNK_DIR" -name "*.js" -exec grep -l "$placeholder" {} + 2>/dev/null | wc -l)
   find "$CHUNK_DIR" -name "*.js" -exec sed -i "s|${placeholder}|${value}|g" {} +
-  echo "[entrypoint] replaced $placeholder → $value ($count file(s))"
+  # Replace in server route bundles (API routes bake NEXT_PUBLIC_* vars too)
+  server_count=$(find "$SERVER_DIR" -name "*.js" -exec grep -l "$placeholder" {} + 2>/dev/null | wc -l)
+  find "$SERVER_DIR" -name "*.js" -exec sed -i "s|${placeholder}|${value}|g" {} +
+  echo "[entrypoint] replaced $placeholder → $value (client: $client_count, server: $server_count file(s))"
 }
 
-replace "__VOPO_AGENT_WS_URL__"  "${NEXT_PUBLIC_AGENT_WS_URL}"           "NEXT_PUBLIC_AGENT_WS_URL"
-replace "__VOPO_APP_URL__"        "${NEXT_PUBLIC_APP_URL}"                "NEXT_PUBLIC_APP_URL"
-replace "__VOPO_WC_PROJECT_ID__"  "${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID}" "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID"
+replace "__VOPO_AGENT_WS_URL__"  "${NEXT_PUBLIC_AGENT_WS_URL}"              "NEXT_PUBLIC_AGENT_WS_URL"
+replace "__VOPO_APP_URL__"        "${NEXT_PUBLIC_APP_URL}"                   "NEXT_PUBLIC_APP_URL"
+replace "__VOPO_WC_PROJECT_ID__"  "${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID}"  "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID"
 
 echo "[entrypoint] starting Next.js server..."
 exec node /srv/standalone/app/server.js

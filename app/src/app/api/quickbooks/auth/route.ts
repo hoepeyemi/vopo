@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
   const origin = new URL(request.url).origin
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL
+  const appUrl = (configuredUrl && !configuredUrl.startsWith("__")) ? configuredUrl : origin
 
   if (!isQuickBooksConfigured()) {
     return NextResponse.redirect(new URL("/dashboard/mint?quickbooks=demo", appUrl))
