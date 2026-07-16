@@ -49,8 +49,11 @@ RUN pnpm install --prod --frozen-lockfile --filter vopo-agent...
 COPY --from=base /repo/agent/dist ./dist
 COPY --from=base /repo/contracts/deployments /app/contracts/deployments
 
-# Non-root user
-RUN groupadd --system nodejs && useradd --system --gid nodejs agentuser
+# Non-root user with write access to the data directory
+RUN groupadd --system nodejs && useradd --system --gid nodejs agentuser \
+  && mkdir -p /app/agent/data \
+  && chown -R agentuser:nodejs /app/agent/data
+
 USER agentuser
 
 EXPOSE 8080

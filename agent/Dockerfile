@@ -31,6 +31,8 @@ COPY --from=base --chown=agentuser:nodejs /app/dist ./dist
 COPY --from=base --chown=agentuser:nodejs /app/node_modules ./node_modules
 COPY --from=base --chown=agentuser:nodejs /app/package.json ./
 
+RUN mkdir -p /app/data && chown agentuser:nodejs /app/data
+
 USER agentuser
 
 EXPOSE 8080
