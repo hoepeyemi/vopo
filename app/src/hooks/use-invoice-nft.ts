@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useChainId, usePublicClient } from "wagmi"
 import { InvoiceNFTABI, type Invoice, InvoiceStatus } from "@/lib/contracts/abis"
 import { getInvoiceNFTAddress } from "@/lib/contracts/addresses"
-import { keccak256, encodePacked, toHex, decodeEventLog } from "viem"
+import { keccak256, encodePacked, toHex, decodeEventLog, createPublicClient, http } from "viem"
+import { getMantleSepoliaRpcUrls } from "@/lib/mantle-rpc"
 
 type MintLogLevel = "info" | "success" | "warning" | "error"
 
@@ -236,27 +237,29 @@ export function useMintInvoice() {
 
     try {
       appendMintLog("info", "checking chain for mined receipt")
-      // Retry up to 5 times with 4s gaps — different RPC nodes may index at
-      // different times, so a single "not found" is not conclusive.
-      for (let attempt = 1; attempt <= 5; attempt++) {
-        try {
-          const onChainReceipt = await publicClient.getTransactionReceipt({
-            hash: hash as `0x${string}`,
-          })
-          if (onChainReceipt) {
-            setForcedReceipt(onChainReceipt)
-            appendMintLog("success", "receipt found on-chain, settling UI")
-            return true
-          }
-        } catch (err) {
-          const isNotFound = err instanceof Error && err.message.includes("could not be found")
-          if (!isNotFound) {
-            throw err
+      // The fallback transport only switches on network errors, not on null
+      // receipts. Query each RPC independently so a stale node can't hide a
+      // receipt that another node already has.
+      const rpcUrls = getMantleSepoliaRpcUrls()
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        for (const url of rpcUrls) {
+          try {
+            const client = createPublicClient({ transport: http(url) })
+            const onChainReceipt = await client.getTransactionReceipt({
+              hash: hash as `0x${string}`,
+            })
+            if (onChainReceipt) {
+              setForcedReceipt(onChainReceipt)
+              appendMintLog("success", `receipt found via ${url.replace("https://", "")}`)
+              return true
+            }
+          } catch {
+            // This RPC errored — try the next one
           }
         }
-        if (attempt < 5) {
-          appendMintLog("info", `tx not indexed yet, retrying (${attempt}/5)...`)
-          await new Promise(r => setTimeout(r, 4_000))
+        if (attempt < 3) {
+          appendMintLog("info", `tx not indexed yet, retrying (${attempt}/3)...`)
+          await new Promise(r => setTimeout(r, 5_000))
         }
       }
       appendMintLog("warning", "transaction not mined yet — check explorer or try again")
@@ -372,12 +375,29 @@ export function useMintInvoice() {
         throw new Error("Wallet address unavailable")
       }
 
+      // Fetch current gas price and enforce a minimum floor.
+      // On Mantle Sepolia, wallets often suggest 0 or sub-minimum gas,
+      // which causes txs to sit in the mempool indefinitely.
+      // Mantle Sepolia minimum is 0.001 gwei = 1_000_000 wei.
+      const GAS_FLOOR = 1_000_000n // 0.001 gwei
+      let gasPrice: bigint
+      try {
+        const networkGasPrice = await publicClient?.getGasPrice()
+        gasPrice = networkGasPrice != null && networkGasPrice > GAS_FLOOR
+          ? networkGasPrice
+          : GAS_FLOOR
+      } catch {
+        gasPrice = GAS_FLOOR
+      }
+      appendMintLog("info", `gas price: ${gasPrice} wei`)
+
       const simulation = await publicClient?.simulateContract({
         address: contractAddress,
         abi: InvoiceNFTABI,
         functionName: "mint",
         args: [dataCommitment, amountCommitment, dueDateUnix],
         account: address,
+        gasPrice,
       })
 
       if (!simulation) {
