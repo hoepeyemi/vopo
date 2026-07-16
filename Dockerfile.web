@@ -21,8 +21,8 @@ COPY . .
 WORKDIR /repo/app
 
 # All NEXT_PUBLIC_* vars are set to unique placeholder strings at build time.
-# The docker-entrypoint.sh replaces them with real values from .env.app at
-# container startup — so no NEXT_PUBLIC values need to be in GitHub secrets.
+# docker-entrypoint.sh replaces them with real values from .env.app on the
+# server at container startup — no NEXT_PUBLIC values need to be in CI secrets.
 ENV NEXT_PUBLIC_NETWORK_MODE=testnet
 ENV NEXT_PUBLIC_CHAIN_ID=5003
 ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC=__VOPO_MANTLE_RPC__
@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates wget \
   && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+WORKDIR /srv
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -50,10 +50,13 @@ ENV HOSTNAME=0.0.0.0
 
 RUN groupadd --system nodejs && useradd --system --gid nodejs nextjs
 
-COPY --from=base --chown=nextjs:nodejs /repo/app/.next/standalone ./
-COPY --from=base --chown=nextjs:nodejs /repo/app/.next/static ./.next/static
-COPY --from=base --chown=nextjs:nodejs /repo/app/public ./public
-COPY --from=base --chown=nextjs:nodejs /repo/app/docker-entrypoint.sh ./docker-entrypoint.sh
+# Copy the full standalone tree — server.js lives at standalone/app/server.js
+# and references ../node_modules (standalone/node_modules) at runtime.
+COPY --from=base --chown=nextjs:nodejs /repo/app/.next/standalone/        ./standalone/
+# Static client assets must be inside the app subdirectory
+COPY --from=base --chown=nextjs:nodejs /repo/app/.next/static/            ./standalone/app/.next/static/
+COPY --from=base --chown=nextjs:nodejs /repo/app/public/                  ./standalone/app/public/
+COPY --from=base --chown=nextjs:nodejs /repo/app/docker-entrypoint.sh     ./docker-entrypoint.sh
 
 RUN chmod +x ./docker-entrypoint.sh
 
