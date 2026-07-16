@@ -1,23 +1,30 @@
 # vopo Frontend
 
-Next.js frontend for vopo, built for Mantle Sepolia and ready for public deployment.
+Next.js frontend for vopo, deployed on Mantle Sepolia.
 
 ## What this app does
 
-- Mints invoice NFTs
+- Mints invoice NFTs with privacy-preserving commitments
 - Shows portfolio and invoice detail pages
 - Connects to the AI agent over WebSocket
-- Supports issuer and privacy controls
-- Displays deployed Mantle Sepolia addresses
+- Supports QuickBooks OAuth for invoice import
+- Displays live yield data from the YieldVault contract
 
-## Public deployment
+## Production deployment
 
-The frontend is configured to be publicly accessible and not localhost-only.
-
-- Live demo: [https://vasno.netlify.app/](https://vasno.netlify.app/)
+- Live: [https://vopo.eduworld.world](https://vopo.eduworld.world)
 - Health endpoint: `/health`
 
-Set the public URL in production with `NEXT_PUBLIC_APP_URL`.
+The app is deployed as a Docker container via GitHub Actions CI/CD. See [DEPLOY.md](../DEPLOY.md) for the full setup.
+
+## Contract addresses (Mantle Sepolia, chainId 5003)
+
+| Contract | Address |
+|---|---|
+| InvoiceNFT | `0x5F1b5A2BF9B38528F74a6d3EDa585C9417050FBa` |
+| YieldVault | `0xb8129B7710C4a63B39735FA560c28C9A2303e095` |
+| AgentRouter | `0x51C6620A0846cA41845756f0315412981487E947` |
+| PrivacyRegistry | `0xe87632AdEdDDc580c726894190c209540FEE5a96` |
 
 ## Local development
 
@@ -28,45 +35,72 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
+Copy and fill in your local env:
+
+```bash
+cp .env.example .env
+```
+
 ## Environment variables
 
-Required for the live Mantle Sepolia app:
+### `.env.example` (reference)
 
 ```bash
-NEXT_PUBLIC_CHAIN_ID=5003
-NEXT_PUBLIC_NETWORK_MODE=testnet
-NEXT_PUBLIC_INVOICE_NFT_ADDRESS=0x76799a06A64f0b1C24Dd688348c6c2D2B215b173
-NEXT_PUBLIC_YIELD_VAULT_ADDRESS=0xEfcae7a8c221956D1B3aff5bCDB0267e4aD6646A
-NEXT_PUBLIC_AGENT_ROUTER_ADDRESS=0x38cf9B34d8Ca1d041FfB876Bf73f8DE2Cb119E01
-NEXT_PUBLIC_PRIVACY_REGISTRY_ADDRESS=0x1941dF807C71A5261468de9dBDA9ceF626e635d3
-NEXT_PUBLIC_MOCK_ORACLE_ADDRESS=
-NEXT_PUBLIC_AGENT_WS_URL=wss://your-public-agent-domain
-NEXT_PUBLIC_APP_URL=https://your-public-web-domain
+# Contract addresses (Mantle Sepolia)
+NEXT_PUBLIC_INVOICE_NFT_ADDRESS=0x5F1b5A2BF9B38528F74a6d3EDa585C9417050FBa
+NEXT_PUBLIC_YIELD_VAULT_ADDRESS=0xb8129B7710C4a63B39735FA560c28C9A2303e095
+NEXT_PUBLIC_AGENT_ROUTER_ADDRESS=0x51C6620A0846cA41845756f0315412981487E947
+NEXT_PUBLIC_PRIVACY_REGISTRY_ADDRESS=0xe87632AdEdDDc580c726894190c209540FEE5a96
+
+# Agent WebSocket
+NEXT_PUBLIC_AGENT_WS_URL=ws://localhost:8080
+
+# App URL (used for QuickBooks OAuth redirect)
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# WalletConnect
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your-project-id
+
+# Mantle Sepolia RPC fallbacks
 NEXT_PUBLIC_MANTLE_SEPOLIA_RPC=https://rpc.sepolia.mantle.xyz
 NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_1=https://mantle-sepolia.drpc.org
 NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_2=https://5003.rpc.thirdweb.com/
+
+# QuickBooks OAuth (optional — falls back to demo mode)
+QUICKBOOKS_CLIENT_ID=
+QUICKBOOKS_CLIENT_SECRET=
+QUICKBOOKS_REDIRECT_URI=http://localhost:3000/api/quickbooks/callback
+QUICKBOOKS_ENVIRONMENT=sandbox
 ```
 
-Mantle Sepolia RPC fallbacks:
+### Important: `NEXT_PUBLIC_*` baking in Docker
 
-```bash
-NEXT_PUBLIC_MANTLE_SEPOLIA_RPC=https://rpc.sepolia.mantle.xyz
-NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_1=https://mantle-sepolia.drpc.org
-NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_2=https://5003.rpc.thirdweb.com/
-```
+`NEXT_PUBLIC_*` vars are embedded in the JS bundle at build time. In the Docker image:
+
+- **Contract addresses** are baked directly with their real values in `Dockerfile.web`
+- **`NEXT_PUBLIC_AGENT_WS_URL`**, **`NEXT_PUBLIC_APP_URL`**, and **`NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`** are baked as placeholder strings and replaced at container startup via `docker-entrypoint.sh`
+- Replacement runs on both client chunks (`.next/static/chunks/`) and server route bundles (`.next/server/`), so server-side API routes also get the correct values
+
+## Invoice minting
+
+The mint flow uses `writeContractAsync` directly — there is no `simulateContract` call. This is intentional:
+
+- `simulateContract` + a `gasPrice` override creates a legacy EIP-155 (type-0) transaction
+- On HTTPS production domains, MetaMask enforces EIP-1559 fee validation more strictly than localhost, causing type-0 txs to get stuck in mempool indefinitely
+- `writeContractAsync` with no gas override lets the wallet use native EIP-1559 fee estimation, which works correctly on both localhost and production
+
+## QuickBooks OAuth setup
+
+1. Register your app at [developer.intuit.com](https://developer.intuit.com/)
+2. Add `https://vopo.eduworld.world/api/quickbooks/callback` as a redirect URI
+3. Copy the client ID/secret into `~/vopo/.env.app` on the server (no trailing spaces)
+4. Set `QUICKBOOKS_ENVIRONMENT=sandbox` for testing, `production` for real data
 
 ## Build and scripts
 
 ```bash
-pnpm dev
-pnpm build
-pnpm lint
-pnpm tsc
+pnpm dev       # Start dev server
+pnpm build     # Production build
+pnpm lint      # ESLint
+pnpm tsc       # Type check
 ```
-
-## Notes
-
-- QuickBooks uses a demo fallback when OAuth is not configured.
-- The app is designed around the live Mantle Sepolia deployment manifest in `contracts/deployments/mantleSepolia.json`.
-- If you change contract addresses, update the deployment manifest and the public env values together.

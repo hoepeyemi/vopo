@@ -1,173 +1,196 @@
-# vopo Agent - Production Deployment Guide
+# vopo Agent — Production Deployment
 
-## Quick Deploy to Railway (Recommended)
+The agent is deployed as a Docker container on an Ubuntu server via GitHub Actions. Each push to `main` automatically builds, pushes, and redeploys both the agent and the app.
 
-### Step 1: Create Railway Project
+---
 
-1. Go to [Railway.app](https://railway.app/)
-2. Click "Start a New Project"
-3. Select "Deploy from GitHub repo"
-4. Choose your `vopo` repository
-5. Select the `agent` directory as the root path
+## Overview
 
-### Step 2: Configure Environment Variables
-
-Add these environment variables in Railway dashboard:
-
-
-**Required:**
 ```
-INVOICE_NFT_ADDRESS=0x76799a06A64f0b1C24Dd688348c6c2D2B215b173
-YIELD_VAULT_ADDRESS=0xEfcae7a8c221956D1B3aff5bCDB0267e4aD6646A
-AGENT_ROUTER_ADDRESS=0x38cf9B34d8Ca1d041FfB876Bf73f8DE2Cb119E01
-PYTH_ORACLE_ADDRESS=0xD793Bb98C1B0b94E5392370d031ED76DeDeAcDd1
+GitHub push to main
+  → GitHub Actions: build Dockerfile.mcp → push to Docker Hub
+  → SSH to Ubuntu server
+  → pull new image
+  → docker stop/rm vopo-agent
+  → docker run vopo-agent with ~/vopo/.env.agent
+  → wait for /health
 ```
 
-**Optional (but recommended):**
-```
+---
+
+## Prerequisites
+
+- Ubuntu server with Docker installed
+- Docker Hub account
+- GitHub repository with Actions enabled
+
+---
+
+## One-time server setup
+
+SSH into your server and run:
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Create directories
+mkdir -p ~/vopo/agent-data
+
+# Create the agent env file (fill in real values)
+cat > ~/vopo/.env.agent << 'EOF'
 MANTLE_RPC_URL=https://rpc.sepolia.mantle.xyz
 WS_PORT=8080
-NODE_ENV=production
-AGENT_PRIVATE_KEY=<your-agent-wallet-private-key>
-ANTHROPIC_API_KEY=<your-anthropic-api-key>
-```
+DEPLOYMENT_NETWORK=mantleSepolia
+CONTRACT_ADDRESS=0x5F1b5A2BF9B38528F74a6d3EDa585C9417050FBa
+YIELD_VAULT_ADDRESS=0xb8129B7710C4a63B39735FA560c28C9A2303e095
+AGENT_ROUTER_ADDRESS=0x51C6620A0846cA41845756f0315412981487E947
+PYTH_ORACLE_ADDRESS=0xD793Bb98C1B0b94E5392370d031ED76DeDeAcDd1
+AAVE_YIELD_ADDRESS=0x413FbA572293494972636975BEe37477dB405652
+AGENT_PRIVATE_KEY=0x...your-agent-wallet-key...
+QWEN_API_KEY=sk-...your-qwen-key...
+EOF
 
-### Step 3: Deploy
+# Strip any accidental trailing whitespace (Docker --env-file includes it as part of the value)
+sed -i 's/[[:space:]]*$//' ~/vopo/.env.agent
 
-1. Railway will auto-detect the `railway.toml` configuration
-2. Click "Deploy" to start the build
-3. Wait for deployment to complete (~2-3 minutes)
-4. Note the public URL (will be something like: `vopo-agent.up.railway.app`)
-
-### Step 4: Update Frontend
-
-Update your frontend `.env` to use the Railway URL:
-```
-NEXT_PUBLIC_AGENT_WS_URL=wss://vopo-agent.up.railway.app
+# Create the Docker network shared by both containers
+docker network create vopo-net
 ```
 
 ---
 
-## Alternative: Deploy to Render.com
+## GitHub Secrets
 
-### Step 1: Create New Web Service
+Set these in **Settings → Secrets and variables → Actions**:
 
-1. Go to [Render.com](https://render.com/)
-2. Click "New +" → "Web Service"
-3. Connect your GitHub repository
-4. Select the `vopo` repository
+| Secret | Value |
+|---|---|
+| `DOCKER_USERNAME` | Your Docker Hub username |
+| `DOCKER_PASSWORD` | Docker Hub password or access token |
+| `SSH_HOST` | Server IP or hostname |
+| `SSH_USERNAME` | SSH user on the server |
+| `SSH_PRIVATE_KEY` | Private key for SSH access |
 
-### Step 2: Configure Service
-
-- **Name:** vopo-agent
-- **Root Directory:** `agent`
-- **Environment:** Node
-- **Build Command:** `pnpm install && pnpm build`
-- **Start Command:** `pnpm start`
-- **Plan:** Free
-
-### Step 3: Environment Variables
-
-Add the same environment variables as listed in Railway guide above.
-
-### Step 4: Deploy
-
-Render will automatically deploy and provide a URL like:
-`https://vopo-agent.onrender.com`
+No contract addresses or private keys go in GitHub secrets — those live in `~/vopo/.env.agent` on the server.
 
 ---
 
-## Alternative: Docker Deployment
-
-The Docker path now targets the agent service only.
-
-### Build and Run Locally
+## Manual deployment (without CI)
 
 ```bash
-# From the repo root
-docker build -f Dockerfile.mcp -t vopo-agent .
+# On the server
+docker pull <your-dockerhub-user>/vopo-agent:latest
 
-# Run container
-docker run -p 8080:8080 \
-  -e DEPLOYMENT_NETWORK=mantleSepolia \
-  -e INVOICE_NFT_ADDRESS=0x76799a06A64f0b1C24Dd688348c6c2D2B215b173 \
-  -e YIELD_VAULT_ADDRESS=0xEfcae7a8c221956D1B3aff5bCDB0267e4aD6646A \
-  -e AGENT_ROUTER_ADDRESS=0x38cf9B34d8Ca1d041FfB876Bf73f8DE2Cb119E01 \
-  -e PYTH_ORACLE_ADDRESS=0xD793Bb98C1B0b94E5392370d031ED76DeDeAcDd1 \
-  -e AAVE_YIELD_ADDRESS=0x413FbA572293494972636975BEe37477dB405652 \
-  vopo-agent
+docker stop vopo-agent 2>/dev/null; docker rm vopo-agent 2>/dev/null
+
+docker run -d \
+  --name vopo-agent \
+  --restart unless-stopped \
+  --network vopo-net \
+  -p 8080:8080 \
+  --env-file ~/vopo/.env.agent \
+  -v ~/vopo/agent-data:/app/agent/data \
+  <your-dockerhub-user>/vopo-agent:latest
+
+# Verify health
+curl http://localhost:8080/health
 ```
-
-The production container now reads the Mantle Sepolia deployment manifest from
-[`contracts/deployments/mantleSepolia.json`](/C:/Users/jwavo/vopo/contracts/deployments/mantleSepolia.json)
-so you usually only need to provide RPC and private key overrides in the env file.
-
-### Deploy to Any Cloud
-
-The Docker image can be deployed to:
-- Google Cloud Run
-- AWS ECS/Fargate
-- Azure Container Instances
-- DigitalOcean App Platform
-- Fly.io
-- Any Kubernetes cluster
 
 ---
 
-## Testing the Deployment
-
-Once deployed, test the WebSocket connection:
+## Checking logs and status
 
 ```bash
-# Install wscat if needed
+# Live logs
+docker logs -f vopo-agent
+
+# Check env vars loaded correctly
+docker exec vopo-agent env | grep -v PRIVATE_KEY
+
+# Verify agent is connected to the right contracts
+docker logs vopo-agent 2>&1 | grep "contract\|address\|connected"
+
+# Health check
+curl http://localhost:8080/health
+
+# WebSocket test (requires wscat)
 npm install -g wscat
-
-# Connect to your deployed service
-wscat -c wss://your-agent-url.railway.app
-
-# You should see:
-# < {"type":"status","payload":{"status":"connected"}}
+wscat -c ws://localhost:8080
+# Expect: {"type":"status","payload":{"status":"connected"}}
 ```
 
 ---
 
 ## Troubleshooting
 
-### Connection Issues
+### Agent crashes on startup
 
-- Ensure WebSocket port (8080) is exposed
-- Check that the service is running (Railway/Render logs)
-- Verify firewall rules allow WebSocket connections
+Check for missing env vars:
 
-### Environment Variable Issues
+```bash
+docker logs vopo-agent 2>&1 | tail -50
+```
 
-- Double-check all contract addresses are correct
-- Ensure no trailing spaces in environment values
-- Verify RPC URL is accessible from the deployment platform
+The most common causes:
+- `AGENT_PRIVATE_KEY` is missing or malformed
+- `MANTLE_RPC_URL` is unreachable
+- Trailing whitespace in `.env.agent` values — fix with `sed -i 's/[[:space:]]*$//' ~/vopo/.env.agent`
 
-### Build Failures
+### Data not persisting across restarts
 
-- Check that `pnpm` is supported (Railway and Render support it)
-- Verify `package.json` and `tsconfig.json` are valid
-- Check deployment logs for specific error messages
+Ensure the volume mount is included in the `docker run` command and the host directory exists:
+
+```bash
+ls -la ~/vopo/agent-data/
+```
+
+### Agent can't reach the app container
+
+Both containers must be on the same Docker network:
+
+```bash
+docker network inspect vopo-net
+# Both vopo-agent and vopo-app should appear under "Containers"
+```
+
+### `$USER` variable unset in SSH session
+
+GitHub Actions SSH sessions are non-login shells where `$USER` may be unset. Use `$HOME` instead:
+
+```bash
+# Correct
+$HOME/vopo/.env.agent
+
+# May fail
+/home/$USER/vopo/.env.agent
+```
 
 ---
 
-## Next Steps
+## Authorizing the agent wallet on-chain
 
-After deployment:
+The agent wallet must be authorized on `AgentRouter` before it can record decisions:
 
-1. ✅ Update frontend environment variables
-2. ✅ Test WebSocket connection from browser
-3. ✅ Verify agent receives blockchain data
-4. ✅ Test full mint → deposit → agent analysis flow
+```bash
+cast send 0x51C6620A0846cA41845756f0315412981487E947 \
+  "authorizeAgent(address)" \
+  <AGENT_WALLET_ADDRESS> \
+  --rpc-url https://rpc.sepolia.mantle.xyz \
+  --private-key <DEPLOYER_PRIVATE_KEY>
+```
 
 ---
 
-## Cost Estimates
+## Contract addresses (Mantle Sepolia)
 
-- **Railway Free Tier**: $5 credit/month, ~500 hours
-- **Render Free Tier**: 750 hours/month, sleeps after 15min inactivity
-- **Docker (Self-hosted)**: Depends on your infrastructure
-
-For hackathon demos, **Railway Free Tier is recommended** (no sleep, persistent connection).
+| Contract | Address |
+|---|---|
+| InvoiceNFT | `0x5F1b5A2BF9B38528F74a6d3EDa585C9417050FBa` |
+| YieldVault | `0xb8129B7710C4a63B39735FA560c28C9A2303e095` |
+| AgentRouter | `0x51C6620A0846cA41845756f0315412981487E947` |
+| PrivacyRegistry | `0xe87632AdEdDDc580c726894190c209540FEE5a96` |
+| Pyth Oracle | `0xD793Bb98C1B0b94E5392370d031ED76DeDeAcDd1` |
+| Aave Yield | `0x413FbA572293494972636975BEe37477dB405652` |

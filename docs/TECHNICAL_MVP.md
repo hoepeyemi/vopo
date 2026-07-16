@@ -1,10 +1,10 @@
-# vopo - Technical MVP Documentation
+# vopo — Technical Documentation
 
 > Turn Invoices into Yield. Automatically.
 
-**Version**: 1.0.0-mvp
-**Network**: Mantle Sepolia (Testnet) / Mantle Mainnet
-**Last Updated**: December 2024
+**Version**: 1.1.0
+**Network**: Mantle Sepolia (chainId 5003)
+**Last Updated**: July 2026
 
 ---
 
@@ -17,11 +17,12 @@
 5. [Frontend Application](#5-frontend-application)
 6. [Privacy Layer](#6-privacy-layer)
 7. [API Reference](#7-api-reference)
-8. [Deployment Guide](#8-deployment-guide)
+8. [Deployment](#8-deployment)
 9. [Configuration](#9-configuration)
 10. [Testing](#10-testing)
 11. [Security Considerations](#11-security-considerations)
-12. [Future Roadmap](#12-future-roadmap)
+12. [Known Issues & Lessons Learned](#12-known-issues--lessons-learned)
+13. [Future Roadmap](#13-future-roadmap)
 
 ---
 
@@ -29,13 +30,13 @@
 
 ### 1.1 Problem Statement
 
-Small businesses and freelancers face a $3T+ global cash flow problem: invoices typically have 30-90 day payment terms, leaving capital locked while waiting for payment. Traditional invoice factoring is expensive (2-5% fees), bureaucratic, and exposes sensitive business data.
+Small businesses and freelancers face a $3T+ global cash flow problem: invoices typically have 30–90 day payment terms, locking capital while waiting for payment. Traditional invoice factoring is expensive (2–5% fees), bureaucratic, and exposes sensitive business data.
 
 ### 1.2 Solution
 
 vopo tokenizes invoices as Real-World Assets (RWAs) on Mantle Sepolia, then deploys an autonomous AI agent to:
 
-- **Optimize yield** on tokenized invoices (3-8% APY)
+- **Optimize yield** on tokenized invoices (3–8% APY)
 - **Protect privacy** using cryptographic commitments
 - **Automate management** with continuous AI-driven strategy optimization
 - **Reduce costs** by leveraging Mantle's low gas fees
@@ -47,7 +48,7 @@ The "Living Agent" architecture streams AI reasoning in real-time via WebSocket,
 ### 1.4 Track Alignment
 
 | Track | Implementation |
-|-------|---------------|
+|---|---|
 | **RWA/RealFi** | Invoice NFTs as yield-generating real-world assets |
 | **AI & Oracles** | Autonomous agent with oracle-fed risk assessment |
 | **ZK & Privacy** | Hash commitments + Merkle proofs (ZK-ready architecture) |
@@ -59,39 +60,38 @@ The "Living Agent" architecture streams AI reasoning in real-time via WebSocket,
 ### 2.1 High-Level Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              USER INTERFACE                                  │
-│                           (Next.js Frontend)                                │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
-│  │   Invoice   │  │  Portfolio  │  │    Stats    │  │   Agent Activity    │ │
-│  │    Form     │  │  Dashboard  │  │   Display   │  │   (Live Stream)     │ │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘ │
-└─────────┼────────────────┼────────────────┼────────────────────┼────────────┘
-          │                │                │                    │
-          │ wagmi/viem     │                │                    │ WebSocket
-          │                │                │                    │
-┌─────────▼────────────────▼────────────────▼────────────────────┼────────────┐
-│                       MANTLE SEPOLIA                           │            │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │            │
-│  │ InvoiceNFT  │  │ YieldVault  │  │  Privacy    │            │            │
-│  │  (ERC-721)  │◄─┤             │  │  Registry   │            │            │
-│  └─────────────┘  └──────┬──────┘  └─────────────┘            │            │
-│                          │                                     │            │
-│  ┌─────────────┐  ┌──────▼──────┐                             │            │
-│  │ MockOracle  │  │ AgentRouter │◄────────────────────────────┘            │
-│  └─────────────┘  └─────────────┘                                          │
-└────────────────────────────────────────────────────────────────────────────┘
-                                    ▲
-                                    │ ethers.js
-                                    │
-┌───────────────────────────────────┴────────────────────────────────────────┐
-│                           AGENT SERVICE                                     │
-│                         (TypeScript/Node.js)                               │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐│
-│  │  Optimizer  │  │     LLM     │  │  WebSocket  │  │    Blockchain       ││
-│  │(Rule-based) │  │    (LLM)    │  │   Server    │  │     Service         ││
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────────────┘│
-└────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                         USER INTERFACE                           │
+│                        (Next.js Frontend)                       │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌─────────────┐  │
+│  │  Invoice  │  │ Portfolio │  │   Stats   │  │Agent Activity│  │
+│  │   Form    │  │ Dashboard │  │  Display  │  │ (Live Stream)│  │
+│  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └──────┬──────┘  │
+└────────┼──────────────┼──────────────┼────────────────┼─────────┘
+         │ wagmi/viem   │              │                │ WebSocket
+         ▼              ▼              ▼                │
+┌─────────────────────────────────────────────────────┼───────────┐
+│                    MANTLE SEPOLIA (5003)             │           │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐        │           │
+│  │InvoiceNFT │  │YieldVault │  │ Privacy   │        │           │
+│  │ (ERC-721) │◄─┤           │  │ Registry  │        │           │
+│  └───────────┘  └─────┬─────┘  └───────────┘        │           │
+│                       │                              │           │
+│  ┌───────────┐  ┌─────▼─────┐                        │           │
+│  │MockOracle │  │AgentRouter│◄───────────────────────┘           │
+│  └───────────┘  └───────────┘                                    │
+└──────────────────────────────────────────────────────────────────┘
+                              ▲
+                              │ ethers.js / viem
+                              │
+┌─────────────────────────────┴────────────────────────────────────┐
+│                        AGENT SERVICE                              │
+│                      (TypeScript/Node.js)                        │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌──────────────┐  │
+│  │Optimizer  │  │    LLM    │  │ WebSocket │  │  Blockchain  │  │
+│  │(Rule-based│  │(Qwen/etc) │  │  Server   │  │   Service    │  │
+│  └───────────┘  └───────────┘  └───────────┘  └──────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2 Data Flow
@@ -99,18 +99,18 @@ The "Living Agent" architecture streams AI reasoning in real-time via WebSocket,
 ```
 1. TOKENIZATION FLOW
    User → InvoiceForm → InvoiceNFT.mint() → NFT Created
-                      ↓
-              PrivacyRegistry.registerCommitment()
+                     ↓
+             PrivacyRegistry.registerCommitment()
 
 2. YIELD FLOW
    User → Approve NFT → YieldVault.deposit() → Strategy Activated
-                                 ↓
-                      Agent monitors via getActiveDeposits()
+                                ↓
+                     Agent monitors via getActiveDeposits()
 
 3. AGENT DECISION FLOW
    Agent Loop → Fetch Invoice Data → Analyze Risk → Generate Recommendation
-       ↓                                                    ↓
-   WebSocket ←── Stream Reasoning ←── LLM Explanation ←────┘
+       ↓                                                 ↓
+   WebSocket ←── Stream Reasoning ←── LLM Explanation ←─┘
        ↓
    AgentRouter.recordDecision() → YieldVault.executeAgentAction()
 
@@ -121,29 +121,31 @@ The "Living Agent" architecture streams AI reasoning in real-time via WebSocket,
 ### 2.3 Technology Stack
 
 | Layer | Technology | Purpose |
-|-------|------------|---------|
-| Network | Mantle Sepolia/Mainnet | Low-cost L2 execution |
+|---|---|---|
+| Network | Mantle Sepolia (chainId 5003) | Low-cost L2 execution |
 | Contracts | Solidity 0.8.24 + Foundry | Smart contract development |
 | Agent | TypeScript + Node.js | Autonomous agent runtime |
-| LLM | Anthropic API | Natural language explanations |
-| Frontend | Next.js 14 + React 19 | User interface |
+| LLM | Qwen API | Natural language explanations |
+| Frontend | Next.js 15 + React 19 | User interface |
 | Web3 | wagmi + viem | Blockchain interactions |
 | Styling | Tailwind CSS 4 | UI components |
 | Real-time | WebSocket (ws) | Live agent streaming |
+| Deployment | Docker + GitHub Actions + Ubuntu | CI/CD |
 
 ---
 
 ## 3. Smart Contracts
 
-### 3.1 Contract Overview
+### 3.1 Contract Addresses (Mantle Sepolia)
 
-| Contract | Address (Sepolia) | Purpose |
-|----------|-------------------|---------|
-| InvoiceNFT | TBD | ERC-721 invoice tokenization |
-| YieldVault | TBD | Yield strategy management |
-| PrivacyRegistry | TBD | Commitment + Merkle proofs |
-| AgentRouter | TBD | Agent decision execution |
-| MockOracle | TBD | Simulated risk data |
+| Contract | Address |
+|---|---|
+| InvoiceNFT | `0x5F1b5A2BF9B38528F74a6d3EDa585C9417050FBa` |
+| YieldVault | `0xb8129B7710C4a63B39735FA560c28C9A2303e095` |
+| AgentRouter | `0x51C6620A0846cA41845756f0315412981487E947` |
+| PrivacyRegistry | `0xe87632AdEdDDc580c726894190c209540FEE5a96` |
+
+Explorer: [https://explorer.sepolia.mantle.xyz](https://explorer.sepolia.mantle.xyz)
 
 ### 3.2 InvoiceNFT.sol
 
@@ -153,8 +155,8 @@ The "Living Agent" architecture streams AI reasoning in real-time via WebSocket,
 
 ```solidity
 struct Invoice {
-    bytes32 dataCommitment;      // hash(invoiceData + salt)
-    bytes32 amountCommitment;    // hash(amount + salt)
+    bytes32 dataCommitment;      // keccak256(invoiceData ++ salt)
+    bytes32 amountCommitment;    // keccak256(amount ++ salt)
     uint256 dueDate;             // Unix timestamp
     uint256 createdAt;           // Mint timestamp
     address issuer;              // Original owner
@@ -175,7 +177,7 @@ enum InvoiceStatus {
 #### Key Functions
 
 | Function | Access | Description |
-|----------|--------|-------------|
+|---|---|---|
 | `mint(dataCommitment, amountCommitment, dueDate)` | Public | Creates new invoice NFT |
 | `updateStatus(tokenId, status)` | YieldVault/Owner | Updates invoice status |
 | `updateRiskMetrics(tokenId, riskScore, paymentProb)` | Oracle/Agent | Updates risk data |
@@ -200,9 +202,9 @@ event RevealAuthorized(uint256 indexed tokenId, address indexed authorizedAddres
 
 ```solidity
 enum Strategy {
-    Hold,           // 0% APY - No yield optimization
-    Conservative,   // 3.5% APY - Low-risk lending
-    Aggressive      // 7% APY - Higher-yield pools
+    Hold,           // 0% APY
+    Conservative,   // 3.5% APY
+    Aggressive      // 7% APY
 }
 
 struct Deposit {
@@ -210,9 +212,9 @@ struct Deposit {
     address owner;
     Strategy strategy;
     uint256 depositTime;
-    uint256 principal;        // Simulated value in wei
-    uint256 accruedYield;     // Accumulated yield
-    uint256 lastYieldUpdate;  // Last calculation timestamp
+    uint256 principal;
+    uint256 accruedYield;
+    uint256 lastYieldUpdate;
     bool active;
 }
 ```
@@ -220,7 +222,7 @@ struct Deposit {
 #### Key Functions
 
 | Function | Access | Description |
-|----------|--------|-------------|
+|---|---|---|
 | `deposit(tokenId, strategy, principal)` | NFT Owner | Deposits invoice for yield |
 | `withdraw(tokenId)` | Deposit Owner | Withdraws NFT + claims yield |
 | `changeStrategy(tokenId, strategy)` | Owner/Agent | Updates yield strategy |
@@ -231,12 +233,10 @@ struct Deposit {
 #### Yield Calculation
 
 ```solidity
-// APY rates in basis points (100 = 1%)
 uint256 public constant HOLD_APY = 0;
 uint256 public constant CONSERVATIVE_APY = 350;   // 3.5%
 uint256 public constant AGGRESSIVE_APY = 700;     // 7%
 
-// Yield formula
 yield = (principal * apy * timeElapsed) / (365 days * 10000)
 ```
 
@@ -247,97 +247,32 @@ yield = (principal * apy * timeElapsed) / (365 days * 10000)
 #### Commitment Scheme
 
 ```solidity
-struct Commitment {
-    bytes32 commitment;      // hash(data + salt)
-    address owner;
-    uint256 timestamp;
-    bool revealed;
-    bytes32 revealedHash;    // hash(revealed_data)
-}
-
-// Create commitment
 commitment = keccak256(abi.encodePacked(data, salt))
-
-// Verify reveal
-computed = keccak256(abi.encodePacked(data, salt))
-valid = (computed == stored_commitment)
+// Verify: keccak256(data, salt) == stored_commitment
 ```
-
-#### Merkle Tree
-
-- Verified invoices are added to a Merkle tree
-- Root is stored on-chain and updated on each addition
-- Inclusion proofs allow proving invoice validity without revealing details
 
 #### Key Functions
 
 | Function | Access | Description |
-|----------|--------|-------------|
+|---|---|---|
 | `registerCommitment(commitment)` | Public | Registers new commitment |
 | `revealCommitment(id, data, salt)` | Owner | Reveals commitment data |
 | `verifyCommitment(id, data, salt)` | View | Verifies without revealing |
 | `addVerifiedInvoice(hash)` | Verifier | Adds to Merkle tree |
 | `verifyInclusion(hash, proof)` | View | Verifies Merkle proof |
-| `computeCommitment(data, salt)` | Pure | Helper for frontend |
 
 ### 3.5 AgentRouter.sol
 
 **Purpose**: Routes and executes AI agent decisions on-chain.
 
-#### Data Structures
-
-```solidity
-struct AgentDecision {
-    uint256 tokenId;
-    Strategy recommendedStrategy;
-    string reasoning;           // Human-readable explanation
-    uint256 confidence;         // 0-100
-    uint256 timestamp;
-    bool executed;
-}
-
-struct AgentConfig {
-    uint256 minConfidence;      // Minimum to auto-execute (default: 70)
-    uint256 maxGasPrice;        // Max gas for execution
-    bool autoExecute;           // Auto-execute high-confidence decisions
-    bool active;                // Agent enabled/disabled
-}
-```
-
 #### Key Functions
 
 | Function | Access | Description |
-|----------|--------|-------------|
+|---|---|---|
 | `recordDecision(tokenId, strategy, confidence, reasoning)` | Agent | Records agent decision |
 | `executeDecision(tokenId, decisionIndex)` | Public | Manually execute decision |
-| `batchRecordAndExecute(...)` | Agent | Batch operations |
 | `authorizeAgent(address)` | Owner | Authorizes agent address |
 | `updateConfig(...)` | Owner | Updates agent parameters |
-
-### 3.6 MockOracle.sol
-
-**Purpose**: Simulates off-chain risk assessment data for demo purposes.
-
-#### Key Functions
-
-| Function | Access | Description |
-|----------|--------|-------------|
-| `setRiskData(tokenId, riskScore, paymentProb)` | Provider | Sets risk metrics |
-| `simulateRiskAssessment(tokenId)` | Public | Auto-generates risk data |
-| `getRiskScore(tokenId)` | View | Returns risk score |
-| `getPaymentProbability(tokenId)` | View | Returns payment probability |
-
-#### Risk Simulation Logic
-
-```solidity
-// Risk varies based on days until due
-if (daysUntilDue < 0)      → riskScore: 30, paymentProb: 40  // Overdue
-if (daysUntilDue < 7)      → riskScore: 60, paymentProb: 70  // Due soon
-if (daysUntilDue < 30)     → riskScore: 75, paymentProb: 85  // Medium term
-if (daysUntilDue >= 30)    → riskScore: 85, paymentProb: 92  // Long term
-
-// Plus pseudo-random variation of ±10
-```
 
 ---
 
@@ -349,12 +284,13 @@ if (daysUntilDue >= 30)    → riskScore: 85, paymentProb: 92  // Long term
 agent/
 ├── src/
 │   ├── index.ts          # Entry point
-│   ├── agent.ts          # Main agent class
+│   ├── agent.ts          # Main agent class + loop
 │   ├── optimizer.ts      # Rule-based strategy optimizer
-│   ├── llm.ts            # LLM integration
+│   ├── llm.ts            # LLM integration (Qwen)
 │   ├── websocket.ts      # WebSocket server
 │   ├── blockchain.ts     # Contract interactions
 │   └── types.ts          # TypeScript interfaces
+├── data/                 # Persisted agent data (volume-mounted)
 ├── package.json
 └── tsconfig.json
 ```
@@ -365,24 +301,18 @@ agent/
 class VopoAgent {
   async runLoop() {
     while (running) {
-      // 1. Fetch active deposits
-      const deposits = await blockchain.getActiveDeposits();
+      const deposits = await blockchain.getActiveDeposits()
 
-      // 2. Analyze each invoice
       for (const tokenId of deposits) {
-        const analysis = await this.analyzeInvoice(tokenId);
+        const analysis = await this.analyzeInvoice(tokenId)
+        await this.streamThoughts(analysis)
 
-        // 3. Stream reasoning via WebSocket
-        await this.streamThoughts(analysis);
-
-        // 4. Execute if conditions met
         if (analysis.shouldAct && config.autoExecute) {
-          await this.executeDecision(analysis);
+          await this.executeDecision(analysis)
         }
       }
 
-      // 5. Wait for next cycle
-      await sleep(config.analysisInterval); // Default: 30s
+      await sleep(config.analysisInterval) // Default: 30s
     }
   }
 }
@@ -390,123 +320,71 @@ class VopoAgent {
 
 ### 4.3 Strategy Optimizer
 
-The optimizer uses a rule-based scoring system:
-
 ```typescript
 function optimizeStrategy(context: OptimizationContext): StrategyRecommendation {
-  let score = 0;
-  const factors: string[] = [];
+  let score = 0
 
   // Factor 1: Risk Score (0-100)
-  if (riskScore >= 80) score += 30;      // High confidence
-  else if (riskScore >= 60) score += 15; // Moderate
-  else if (riskScore >= 40) score += 5;  // Below average
-  else score -= 10;                       // High risk
+  if (riskScore >= 80) score += 30
+  else if (riskScore >= 60) score += 15
+  else if (riskScore >= 40) score += 5
+  else score -= 10
 
   // Factor 2: Payment Probability
-  if (paymentProb >= 90) score += 25;
-  else if (paymentProb >= 75) score += 15;
-  else if (paymentProb >= 50) score += 5;
-  else score -= 15;
+  if (paymentProb >= 90) score += 25
+  else if (paymentProb >= 75) score += 15
+  else if (paymentProb >= 50) score += 5
+  else score -= 15
 
   // Factor 3: Time until due
-  if (daysUntilDue >= 60) score += 20;   // Long duration
-  else if (daysUntilDue >= 30) score += 15;
-  else if (daysUntilDue >= 14) score += 5;
-  else if (daysUntilDue < 0) score -= 30; // Overdue
+  if (daysUntilDue >= 60) score += 20
+  else if (daysUntilDue >= 30) score += 15
+  else if (daysUntilDue >= 14) score += 5
+  else if (daysUntilDue < 0) score -= 30
 
-  // Strategy selection
-  if (score >= 60) return Strategy.Aggressive;
-  if (score >= 30) return Strategy.Conservative;
-  return Strategy.Hold;
+  if (score >= 60) return Strategy.Aggressive
+  if (score >= 30) return Strategy.Conservative
+  return Strategy.Hold
 }
 ```
 
-### 4.4 LLM Integration
+### 4.4 WebSocket Protocol
 
-```typescript
-class LLMService {
-  async generateExplanation(analysis: AnalysisResult): Promise<string> {
-    if (!this.enabled) {
-      return this.generateTemplateExplanation(analysis);
-    }
-
-    const response = await this.client.messages.create({
-      model: 'haiku-latest',
-      max_tokens: 300,
-      system: `You are an AI financial advisor explaining invoice yield decisions.
-               Keep explanations under 3 sentences. Be direct and actionable.`,
-      messages: [{
-        role: 'user',
-        content: this.buildPrompt(analysis)
-      }]
-    });
-
-    return response.content[0].text;
-  }
-}
-```
-
-### 4.5 WebSocket Protocol
+**Endpoint**: `ws://localhost:8080` locally, `ws://agent.eduworld.world` in production
 
 #### Message Types
 
 ```typescript
 interface WebSocketMessage {
-  type: 'thought' | 'decision' | 'execution' | 'status' | 'error';
-  payload: AgentThought | AgentDecision | { status: string };
-}
-
-interface AgentThought {
-  type: 'thinking' | 'analysis' | 'decision' | 'execution' | 'error';
-  tokenId: string;
-  message: string;
-  timestamp: number;
-  data?: Record<string, unknown>;
+  type: 'thought' | 'decision' | 'execution' | 'status' | 'error'
+  payload: AgentThought | AgentDecision | { status: string }
 }
 ```
 
 #### Example Message Sequence
 
 ```json
-// 1. Agent starts analysis
+{"type": "status", "payload": {"status": "connected"}}
+
 {"type": "thought", "payload": {
-  "type": "thinking",
-  "tokenId": "0",
-  "message": "🔍 Analyzing Invoice #0...",
-  "timestamp": 1703318400000
+  "type": "thinking", "tokenId": "0",
+  "message": "Analyzing Invoice #0..."
 }}
 
-// 2. Risk assessment
 {"type": "thought", "payload": {
-  "type": "analysis",
-  "tokenId": "0",
-  "message": "📈 Risk Score: 85/100 | Payment Probability: 92%",
-  "timestamp": 1703318400500,
+  "type": "analysis", "tokenId": "0",
+  "message": "Risk Score: 85/100 | Payment Probability: 92%",
   "data": {"riskScore": 85, "paymentProbability": 92, "daysUntilDue": 45}
 }}
 
-// 3. Strategy evaluation
 {"type": "thought", "payload": {
-  "type": "analysis",
-  "tokenId": "0",
-  "message": "🎯 Evaluating: Hold → Aggressive (87% confidence)",
-  "timestamp": 1703318401000
+  "type": "decision", "tokenId": "0",
+  "message": "Upgrading to Aggressive strategy — strong fundamentals."
 }}
 
-// 4. Decision
-{"type": "thought", "payload": {
-  "type": "decision",
-  "tokenId": "0",
-  "message": "Upgrading to Aggressive strategy for higher yields (6-8% APY). Strong fundamentals make this a confident move.",
-  "timestamp": 1703318401500
-}}
-
-// 5. Execution
 {"type": "execution", "payload": {
-  "type": "execution",
-  "tokenId": "0",
-  "message": "✅ Strategy updated to Aggressive",
+  "type": "execution", "tokenId": "0",
+  "message": "Strategy updated to Aggressive",
   "data": {"txHash": "0x..."}
 }}
 ```
@@ -520,88 +398,74 @@ interface AgentThought {
 ```
 app/src/
 ├── app/
-│   ├── layout.tsx        # Root layout with providers
-│   ├── page.tsx          # Main dashboard
-│   └── globals.css       # Global styles
+│   ├── layout.tsx
+│   ├── page.tsx
+│   ├── dashboard/
+│   │   ├── page.tsx
+│   │   ├── mint/page.tsx
+│   │   ├── portfolio/page.tsx
+│   │   └── settings/page.tsx
+│   └── api/
+│       ├── invoices/route.ts
+│       ├── quickbooks/auth/route.ts
+│       └── quickbooks/callback/route.ts
 ├── components/
-│   ├── Providers.tsx     # wagmi + react-query setup
-│   ├── ConnectWallet.tsx # Wallet connection button
-│   ├── AgentActivity.tsx # Live agent reasoning feed
-│   ├── InvoiceForm.tsx   # Invoice tokenization form
-│   ├── Portfolio.tsx     # User's invoice portfolio
-│   └── Stats.tsx         # Protocol statistics
+│   ├── providers.tsx
+│   └── ...
+├── hooks/
+│   ├── use-invoice-nft.ts    # Core minting + polling logic
+│   └── ...
 └── lib/
-    ├── wagmi.ts          # Web3 configuration
-    └── abi.ts            # Contract ABIs
+    ├── wagmi.ts              # Web3 config + chain definition
+    ├── mantle-rpc.ts         # RPC URL list + transport
+    └── contracts/
+        ├── addresses.ts      # Address registry by chainId
+        ├── abis.ts           # Contract ABIs
+        └── server.ts         # Server-side contract reads
 ```
 
-### 5.2 Key Components
+### 5.2 Invoice Minting
 
-#### AgentActivity (The "Wow Factor")
-
-Real-time streaming of agent thoughts via WebSocket:
+The mint flow (`use-invoice-nft.ts → useMintInvoice`) uses `writeContractAsync` directly:
 
 ```typescript
-function AgentActivity() {
-  const [thoughts, setThoughts] = useState<AgentThought[]>([]);
-  const [connected, setConnected] = useState(false);
-
-  useEffect(() => {
-    const ws = new WebSocket(AGENT_WS_URL);
-
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.type === 'thought') {
-        setThoughts(prev => [...prev.slice(-49), message.payload]);
-      }
-    };
-
-    return () => ws.close();
-  }, []);
-
-  return (
-    <div className="h-96 overflow-y-auto">
-      {thoughts.map((thought, i) => (
-        <ThoughtCard key={i} thought={thought} />
-      ))}
-    </div>
-  );
-}
+await writeContractAsync({
+  address: contractAddress,
+  abi: InvoiceNFTABI,
+  functionName: "mint",
+  args: [dataCommitment, amountCommitment, dueDateUnix],
+  chainId: MANTLE_SEPOLIA_CHAIN_ID,
+})
 ```
 
-#### InvoiceForm (Privacy-Preserving Minting)
+No `simulateContract` call. The wallet handles EIP-1559 gas estimation natively. This is required because `simulateContract` with a `gasPrice` override creates a legacy type-0 transaction, which MetaMask blocks on HTTPS production domains under EIP-1559 fee validation.
+
+Receipt confirmation uses `useWaitForTransactionReceipt` with `pollingInterval: 3_000`. A 3-minute timeout fires `forceSettle`, which queries each RPC URL independently (bypassing viem's `fallback()` transport, which only retries on network errors — not on null receipts).
+
+### 5.3 Server-Side Contract Reads
+
+API routes (`/api/invoices`) call contract read functions server-side via `app/src/lib/contracts/server.ts`. Contract addresses are available server-side because `NEXT_PUBLIC_*` vars are baked into server route bundles at build time alongside client chunks.
+
+Diagnostics are logged at startup:
+
+```
+[contracts/server] chainId: 5003
+[contracts/server] invoiceNFT: 0x5F1b5A2BF9B38528F74a6d3EDa585C9417050FBa
+[contracts/server] getActiveInvoices → 5 ids: [1, 2, 3, 4, 5]
+```
+
+### 5.4 QuickBooks OAuth
+
+The OAuth flow in `api/quickbooks/auth/route.ts` constructs the redirect URI server-side. A guard prevents crashing when the `NEXT_PUBLIC_APP_URL` placeholder hasn't been replaced yet:
 
 ```typescript
-function InvoiceForm() {
-  const handleSubmit = async (formData) => {
-    // Generate random salt
-    const salt = keccak256(toHex(crypto.randomUUID()));
+const configuredUrl = process.env.NEXT_PUBLIC_APP_URL
+const appUrl = (configuredUrl && !configuredUrl.startsWith("__"))
+  ? configuredUrl
+  : origin  // fallback to request origin
 
-    // Create commitments (not raw data)
-    const dataCommitment = keccak256(
-      encodePacked(['string', 'bytes32'], [invoiceData, salt])
-    );
-
-    // Store salt locally for future reveals
-    localStorage.setItem('invoiceSalts', JSON.stringify({
-      [dataCommitment]: { salt, data: invoiceData }
-    }));
-
-    // Mint with commitments only
-    writeContract({
-      functionName: 'mint',
-      args: [dataCommitment, amountCommitment, dueDate]
-    });
-  };
-}
+const redirectUri = process.env.QUICKBOOKS_REDIRECT_URI || `${appUrl}/api/quickbooks/callback`
 ```
-
-### 5.3 State Management
-
-- **wagmi**: Wallet connection, contract reads/writes
-- **@tanstack/react-query**: Caching, refetching, optimistic updates
-- **Local state**: Form data, UI state
-- **WebSocket**: Real-time agent activity
 
 ---
 
@@ -609,267 +473,122 @@ function InvoiceForm() {
 
 ### 6.1 Commitment Scheme
 
-Invoice data is never stored on-chain in plain text. Instead:
+Invoice data is never stored on-chain in plain text:
 
 ```
 COMMITMENT CREATION:
 1. User enters invoice data: {client: "Acme", amount: 10000, ...}
-2. Generate random salt: salt = keccak256(randomUUID())
-3. Create commitment: commitment = keccak256(data || salt)
-4. Store commitment on-chain, keep salt locally
+2. Generate random salt: salt = crypto.getRandomValues(32 bytes)
+3. dataCommitment  = keccak256(data || salt)
+4. amountCommitment = keccak256(amount || salt)
+5. Only commitments go on-chain — salt stays local
 
 VERIFICATION (without revealing):
 1. Verifier has: commitment (on-chain)
 2. Owner provides: data + salt (off-chain)
 3. Verifier computes: keccak256(data || salt)
 4. Compare: computed == stored → valid
-
-SELECTIVE REVEAL:
-1. Owner authorizes specific address
-2. Shares data + salt with authorized party only
-3. On-chain verification confirms authenticity
 ```
 
-### 6.2 Merkle Tree for Verified Invoices
+### 6.2 ZK-Ready Architecture
 
-```
-Purpose: Prove invoice membership in "verified" set without revealing which invoice
-
-STRUCTURE:
-                    [Root]
-                   /      \
-              [H1-2]      [H3-4]
-              /    \      /    \
-           [H1]  [H2]  [H3]  [H4]
-            |     |     |     |
-        Invoice1 Invoice2 Invoice3 Invoice4
-
-VERIFICATION:
-- Prover knows: Invoice2 hash, Merkle proof [H1, H3-4]
-- Verifier has: Root (on-chain)
-- Verification: hash(hash(H1, Invoice2), H3-4) == Root
-- Result: Invoice2 is in verified set (without revealing Invoice2's data)
-```
-
-### 6.3 ZK-Ready Architecture
-
-Current implementation uses hash commitments. The architecture is designed for ZK upgrade:
-
-```
-FUTURE ZK IMPLEMENTATION (Noir):
-
-fn main(
-    // Private inputs
-    invoice_amount: Field,
-    due_date: Field,
-    owner_secret: Field,
-
-    // Public inputs
-    min_amount: Field,
-    owner_commitment: Field
-) {
-    // Prove amount > minimum without revealing exact amount
-    assert(invoice_amount > min_amount);
-
-    // Prove ownership
-    assert(hash(owner_secret) == owner_commitment);
-}
-
-OUTPUT: Zero-knowledge proof that invoice meets criteria
-```
+Current implementation uses keccak256 commitments. The architecture is designed for a ZK upgrade (Noir circuits) that would prove properties about invoice values without revealing them.
 
 ---
 
 ## 7. API Reference
 
-### 7.1 Contract ABIs
+### 7.1 REST Endpoints
 
-Full ABIs are available in `/app/src/lib/abi.ts`. Key function signatures:
-
-#### InvoiceNFT
-
-```typescript
-// Mint new invoice
-function mint(
-  dataCommitment: bytes32,
-  amountCommitment: bytes32,
-  dueDate: uint256
-) returns (uint256 tokenId)
-
-// Get invoice details
-function getInvoice(uint256 tokenId) returns (Invoice)
-
-// Verify commitment reveal
-function verifyReveal(
-  uint256 tokenId,
-  bytes data,
-  bytes32 salt
-) returns (bool valid)
-```
-
-#### YieldVault
-
-```typescript
-// Deposit invoice for yield
-function deposit(
-  uint256 tokenId,
-  uint8 strategy,      // 0=Hold, 1=Conservative, 2=Aggressive
-  uint256 principal    // Simulated value in wei
-)
-
-// Withdraw and claim yield
-function withdraw(uint256 tokenId)
-
-// Get current yield
-function getAccruedYield(uint256 tokenId) returns (uint256)
-```
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/invoices` | Returns active invoice IDs from contract |
+| GET | `/api/quickbooks/auth` | Initiates QuickBooks OAuth flow |
+| GET | `/api/quickbooks/callback` | Handles OAuth redirect, exchanges code for token |
+| GET | `/health` | Returns `{ status: "ok" }` |
 
 ### 7.2 WebSocket API
 
-**Endpoint**: `ws://localhost:8080` (configurable)
+**Endpoint**: `ws://agent.eduworld.world` (production), `ws://localhost:8080` (local)
 
-**Client → Server Messages**:
-```typescript
-// Request analysis of specific invoice
-{ "type": "requestAnalysis", "tokenId": "0" }
-```
-
-**Server → Client Messages**:
-```typescript
-// Agent thought/activity
-{ "type": "thought", "payload": AgentThought }
-
-// Decision recorded
-{ "type": "decision", "payload": AgentDecision }
-
-// Execution result
-{ "type": "execution", "payload": { "tokenId", "success", "txHash" } }
-
-// Connection status
-{ "type": "status", "payload": { "status": "connected" } }
-```
+See Section 4.4 for the full message protocol.
 
 ---
 
-## 8. Deployment Guide
+## 8. Deployment
 
-### 8.1 Prerequisites
-
-- Node.js 18+
-- pnpm 8+
-- Foundry (forge, cast, anvil)
-- Mantle Sepolia testnet ETH ([Faucet](https://faucet.sepolia.mantle.xyz/))
-- (Optional) Anthropic API key for LLM features
-
-### 8.2 Contract Deployment
+### 8.1 Local Development
 
 ```bash
-# 1. Navigate to contracts
-cd /Users/yonko/invoiceagent/contracts
+# Install dependencies (repo root)
+pnpm install
 
-# 2. Set environment
-export PRIVATE_KEY=your_private_key_here
-export MANTLE_SEPOLIA_RPC=https://5003.rpc.thirdweb.com/
+# Start agent
+cd agent && pnpm dev
 
-# 3. Deploy
+# Start frontend (separate terminal)
+cd app && pnpm dev
+# → http://localhost:3000
+```
+
+### 8.2 Production (Docker + Ubuntu + GitHub Actions)
+
+See [DEPLOY.md](../DEPLOY.md) for the full guide. Summary:
+
+1. Set GitHub Secrets: `DOCKER_USERNAME`, `DOCKER_PASSWORD`, `SSH_HOST`, `SSH_USERNAME`, `SSH_PRIVATE_KEY`
+2. Create `~/vopo/.env.app` and `~/vopo/.env.agent` on the server (no trailing whitespace)
+3. Push to `main` → CI builds images, SSHes to server, redeploys containers
+
+### 8.3 Contract Deployment
+
+Contracts are already deployed. To redeploy from scratch:
+
+```bash
+cd contracts
+export PRIVATE_KEY=your_deployer_key
+export MANTLE_SEPOLIA_RPC=https://rpc.sepolia.mantle.xyz
+
 forge script script/Deploy.s.sol \
   --rpc-url $MANTLE_SEPOLIA_RPC \
   --broadcast \
   --verify
-
-# 4. Note deployed addresses from output:
-# InvoiceNFT: 0x...
-# YieldVault: 0x...
-# PrivacyRegistry: 0x...
-# AgentRouter: 0x...
-# MockOracle: 0x...
 ```
 
-### 8.3 Agent Configuration
-
-```bash
-# 1. Navigate to agent
-cd /Users/yonko/invoiceagent/agent
-
-# 2. Create .env
-cp .env.example .env
-
-# 3. Edit .env with deployed addresses
-MANTLE_RPC_URL=https://5003.rpc.thirdweb.com/
-AGENT_PRIVATE_KEY=your_agent_wallet_private_key
-ANTHROPIC_API_KEY=your_anthropic_key  # Optional
-WS_PORT=8080
-
-INVOICE_NFT_ADDRESS=0x...
-YIELD_VAULT_ADDRESS=0x...
-AGENT_ROUTER_ADDRESS=0x...
-MOCK_ORACLE_ADDRESS=0x...
-
-# 4. Authorize agent on AgentRouter
-cast send $AGENT_ROUTER_ADDRESS \
-  "authorizeAgent(address)" \
-  $AGENT_WALLET_ADDRESS \
-  --rpc-url $MANTLE_SEPOLIA_RPC \
-  --private-key $DEPLOYER_PRIVATE_KEY
-```
-
-### 8.4 Frontend Configuration
-
-```bash
-# 1. Navigate to app
-cd /Users/yonko/invoiceagent/app
-
-# 2. Create .env
-cp .env.example .env
-
-# 3. Edit .env
-NEXT_PUBLIC_INVOICE_NFT_ADDRESS=0x...
-NEXT_PUBLIC_YIELD_VAULT_ADDRESS=0x...
-NEXT_PUBLIC_PRIVACY_REGISTRY_ADDRESS=0x...
-NEXT_PUBLIC_AGENT_ROUTER_ADDRESS=0x...
-NEXT_PUBLIC_MOCK_ORACLE_ADDRESS=0x...
-NEXT_PUBLIC_AGENT_WS_URL=ws://localhost:8080
-```
-
-### 8.5 Running the System
-
-```bash
-# Terminal 1: Start agent
-cd agent && pnpm dev
-
-# Terminal 2: Start frontend
-cd app && pnpm dev
-
-# Access at http://localhost:3000
-```
+After redeployment, update addresses in:
+- `Dockerfile.web` (ENV declarations)
+- `app/.env.example`
+- `app/src/lib/contracts/addresses.ts`
+- `agent/src/blockchain.ts` (or the agent env file)
 
 ---
 
 ## 9. Configuration
 
-### 9.1 Agent Configuration
+### 9.1 Agent Parameters
 
 | Parameter | Default | Description |
-|-----------|---------|-------------|
+|---|---|---|
 | `minConfidence` | 70 | Minimum confidence to auto-execute |
 | `analysisInterval` | 30000ms | Time between analysis cycles |
-| `maxConcurrentAnalyses` | 5 | Max parallel invoice analyses |
 | `autoExecute` | true | Auto-execute high-confidence decisions |
 
 ### 9.2 Yield Rates
 
 | Strategy | APY | Risk Level |
-|----------|-----|------------|
+|---|---|---|
 | Hold | 0% | None |
 | Conservative | 3.5% | Low |
 | Aggressive | 7% | Medium |
 
-### 9.3 Network Configuration
+### 9.3 Network
 
 | Network | Chain ID | RPC |
-|---------|----------|-----|
-| Mantle Sepolia | 5003 | https://5003.rpc.thirdweb.com/ |
-| Mantle Mainnet | 5000 | https://rpc.mantle.xyz |
+|---|---|---|
+| Mantle Sepolia | 5003 | `https://rpc.sepolia.mantle.xyz` |
+| Fallback 1 | 5003 | `https://mantle-sepolia.drpc.org` |
+| Fallback 2 | 5003 | `https://5003.rpc.thirdweb.com/` |
+
+wagmi is configured with `pollingInterval: 12_000` (12s) and `batch: { multicall: true }` to avoid rate-limiting Mantle Sepolia's public RPC.
 
 ---
 
@@ -879,50 +598,25 @@ cd app && pnpm dev
 
 ```bash
 cd contracts
-
-# Run all tests
 forge test
-
-# Run with verbosity
-forge test -vvv
-
-# Run specific test
-forge test --match-test test_FullFlow
-
-# Gas report
-forge test --gas-report
+forge test -vvv          # verbose
+forge test --gas-report  # gas usage
 ```
 
-**Test Coverage**:
-- InvoiceNFT: Minting, status updates, reveal verification
-- YieldVault: Deposits, withdrawals, strategy changes, yield calculation
-- PrivacyRegistry: Commitments, reveals, Merkle proofs
-- AgentRouter: Decision recording, execution, authorization
-- MockOracle: Risk data setting, simulation
-- Integration: Full flow from mint → deposit → agent decision → withdraw
-
-### 10.2 Agent Tests
+### 10.2 Agent
 
 ```bash
 cd agent
-
-# Type check
-pnpm exec tsc --noEmit
-
-# Run (manual testing)
-pnpm dev
+pnpm exec tsc --noEmit  # type check
+pnpm dev                # manual test (watch logs)
 ```
 
-### 10.3 Frontend Tests
+### 10.3 Frontend
 
 ```bash
 cd app
-
-# Type check
-pnpm exec tsc --noEmit
-
-# Build (catches errors)
-pnpm build
+pnpm exec tsc --noEmit  # type check
+pnpm build              # production build
 ```
 
 ---
@@ -932,45 +626,83 @@ pnpm build
 ### 11.1 Smart Contract Security
 
 | Risk | Mitigation |
-|------|------------|
-| Reentrancy | ReentrancyGuard on YieldVault |
-| Access Control | Ownable + role-based modifiers |
+|---|---|
+| Reentrancy | `ReentrancyGuard` on YieldVault |
+| Access Control | `Ownable` + role-based modifiers |
 | Integer Overflow | Solidity 0.8+ built-in checks |
-| Front-running | Agent decisions are informational |
+| Unauthorized agent | `authorizeAgent` allowlist on AgentRouter |
 
-### 11.2 Privacy Considerations
+### 11.2 Privacy
 
 | Data | Storage | Access |
-|------|---------|--------|
+|---|---|---|
 | Invoice details | Off-chain (user's device) | User only |
-| Commitments | On-chain | Public (but meaningless without salt) |
-| Salts | Local storage | User only |
+| Commitments | On-chain | Public (meaningless without salt) |
+| Salts | localStorage | User only |
 | Risk scores | On-chain | Public |
 
 ### 11.3 Agent Security
 
-| Risk | Mitigation |
-|------|------------|
-| Unauthorized execution | Agent authorization required |
-| Gas griefing | maxGasPrice config |
-| Bad decisions | Rule-based logic (auditable), confidence thresholds |
+- `AGENT_PRIVATE_KEY` lives only in `~/vopo/.env.agent` on the server
+- Never in the frontend, GitHub secrets, or Docker image
+- Agent wallet must be explicitly authorized on `AgentRouter`
 
 ### 11.4 Known Limitations (MVP)
 
-1. **Mock Oracle**: Risk data is simulated, not from real sources
-2. **Simulated Yield**: No actual DeFi integration (future: Lendle)
-3. **Local Salt Storage**: Production would use secure storage/encryption
-4. **Single Agent**: No redundancy or failover
+1. **Simulated yield**: No actual DeFi integration yet (future: Lendle)
+2. **Mock Oracle**: Risk data is simulated
+3. **Local salt storage**: Production would use encrypted storage
+4. **Single agent**: No redundancy or failover
 
 ---
 
-## 12. Future Roadmap
+## 12. Known Issues & Lessons Learned
 
-### Phase 1: MVP (Current)
+### 12.1 `NEXT_PUBLIC_*` Variable Baking
+
+`NEXT_PUBLIC_*` vars are embedded in the JS bundle at build time — runtime env files cannot override them. They appear in **two** places:
+
+- `.next/static/chunks/*.js` (client-side)
+- `.next/server/**/*.js` (server-side route bundles)
+
+The entrypoint `sed` replacement must cover both directories. Replacing only client chunks leaves server-side API routes with stale placeholder values (e.g. `__VOPO_APP_URL__`), causing `new URL()` crashes.
+
+### 12.2 EIP-1559 Gas on Production HTTPS
+
+Using `simulateContract` with a `gasPrice` override creates a legacy type-0 transaction. MetaMask enforces EIP-1559 fee validation more strictly on HTTPS origins than on `localhost`, causing these transactions to get stuck in the mempool indefinitely. Fix: use `writeContractAsync` with no gas override and let the wallet use native EIP-1559 fee estimation.
+
+### 12.3 viem `fallback()` Transport and Receipt Polling
+
+`fallback()` only switches RPC providers on network-level errors. A successful HTTP 200 response containing `null` (when a transaction hasn't been indexed yet) does not trigger a fallback. For receipt polling, query each RPC URL independently.
+
+### 12.4 Docker `--env-file` Trailing Whitespace
+
+Docker's `--env-file` parser includes trailing whitespace as part of the value. A value like `CLIENT_ID=abc  ` becomes `abc  ` (with spaces), which breaks authentication. Strip trailing whitespace before using an env file:
+
+```bash
+sed -i 's/[[:space:]]*$//' ~/vopo/.env.app
+```
+
+### 12.5 `$USER` in SSH Sessions
+
+`$USER` is unset in non-login shell sessions used by GitHub Actions SSH. Use `$HOME` instead of `/home/$USER/...`.
+
+### 12.6 Contract Address Consistency
+
+Two contract deployments exist on Mantle Sepolia. The **active** deployment is the one with addresses in Section 3.1. The Dockerfile, local `.env`, server `.env.app`, and agent `.env.agent` must all reference the same deployment. Mixing addresses causes the invoice table to show a different count than what exists on-chain.
+
+---
+
+## 13. Future Roadmap
+
+### Phase 1: MVP (Complete)
 - [x] Invoice tokenization with commitments
 - [x] Yield vault with simulated APY
 - [x] Autonomous agent with live reasoning
 - [x] Privacy-preserving architecture
+- [x] Ubuntu + Docker + GitHub Actions CI/CD
+- [x] QuickBooks OAuth integration
+- [x] Production deployment at `https://vopo.eduworld.world`
 
 ### Phase 2: Real DeFi Integration
 - [ ] Lendle protocol integration for actual yield
@@ -982,7 +714,7 @@ pnpm build
 - [ ] zkPass integration for KYC
 - [ ] Private invoice verification
 
-### Phase 4: Production
+### Phase 4: Production Scale
 - [ ] Multi-sig custody
 - [ ] Secondary market for invoice NFTs
 - [ ] Institutional compliance features
@@ -990,56 +722,44 @@ pnpm build
 
 ---
 
-## Appendix A: Contract Addresses
-
-| Contract | Mantle Sepolia | Mantle Mainnet |
-|----------|---------------|----------------|
-| InvoiceNFT | TBD | TBD |
-| YieldVault | TBD | TBD |
-| PrivacyRegistry | TBD | TBD |
-| AgentRouter | TBD | TBD |
-| MockOracle | TBD | TBD |
-
----
-
-## Appendix B: Error Codes
+## Appendix A: Error Reference
 
 ### Smart Contracts
 
 | Error | Contract | Meaning |
-|-------|----------|---------|
-| "Only YieldVault" | InvoiceNFT | Caller is not YieldVault |
-| "Only Agent or Oracle" | InvoiceNFT | Unauthorized risk update |
-| "Not token owner" | InvoiceNFT | Caller doesn't own NFT |
-| "Already deposited" | YieldVault | Invoice already in vault |
-| "Not active" | YieldVault | Deposit not active |
-| "Not authorized agent" | AgentRouter | Agent not authorized |
+|---|---|---|
+| `"Only YieldVault"` | InvoiceNFT | Caller is not YieldVault |
+| `"Only Agent or Oracle"` | InvoiceNFT | Unauthorized risk update |
+| `"Not token owner"` | InvoiceNFT | Caller doesn't own NFT |
+| `"Already deposited"` | YieldVault | Invoice already in vault |
+| `"Not active"` | YieldVault | Deposit not active |
+| `"Not authorized agent"` | AgentRouter | Agent not authorized |
 
-### Agent Service
+### Frontend / Mint Flow
 
 | Error | Meaning |
-|-------|---------|
-| "Agent not active" | Agent is disabled |
-| "No private key" | Running in read-only mode |
-| "LLM error" | LLM API call failed |
-| "WebSocket error" | Connection issue |
+|---|---|
+| `tx stuck in mempool` | Legacy type-0 tx — remove `gasPrice` from `simulateContract` |
+| `chain check failed: could not be found` | Wrong chain or RPC unreachable — `forceSettle` handles this |
+| `__VOPO_APP_URL__ is not a valid URL` | Entrypoint sed didn't replace server bundles |
+| `clientId='undefined'` | Trailing whitespace in `.env.app` QUICKBOOKS_CLIENT_ID |
+
+### Agent
+
+| Error | Meaning |
+|---|---|
+| `"Agent not active"` | Agent is disabled |
+| `"No private key"` | Running in read-only mode |
+| `"WebSocket error"` | Connection issue |
 
 ---
 
-## Appendix C: Gas Estimates
+## Appendix B: Gas Estimates (Mantle Sepolia)
 
 | Operation | Estimated Gas | Cost @ 0.02 gwei |
-|-----------|--------------|------------------|
-| mint() | ~250,000 | ~0.000005 MNT |
-| deposit() | ~300,000 | ~0.000006 MNT |
-| withdraw() | ~200,000 | ~0.000004 MNT |
-| recordDecision() | ~150,000 | ~0.000003 MNT |
-| changeStrategy() | ~100,000 | ~0.000002 MNT |
-
-*Mantle's low gas costs enable frequent agent execution*
-
----
-
-**Document Version**: 1.0.0
-**Last Updated**: December 2024
-**Authors**: Built with AI assistance for Mantle Global Hackathon 2025
+|---|---|---|
+| `mint()` | ~250,000 | ~0.000005 MNT |
+| `deposit()` | ~300,000 | ~0.000006 MNT |
+| `withdraw()` | ~200,000 | ~0.000004 MNT |
+| `recordDecision()` | ~150,000 | ~0.000003 MNT |
+| `changeStrategy()` | ~100,000 | ~0.000002 MNT |
