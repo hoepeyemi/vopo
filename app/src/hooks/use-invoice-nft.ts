@@ -149,6 +149,7 @@ export function useMintInvoice() {
   const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({
     hash,
     confirmations: 1,
+    pollingInterval: 3_000, // poll every 3s — overrides the 12s global for mint confirmation
   })
 
   const resolvedReceipt = receipt ?? forcedReceipt
@@ -222,7 +223,7 @@ export function useMintInvoice() {
 
   useEffect(() => {
     if (confirmationTimedOut) {
-      appendMintLog("warning", "transaction still pending after 60s")
+      appendMintLog("warning", "transaction still pending after 3 min — use 'force settle' to check manually")
     }
   }, [confirmationTimedOut])
 
@@ -235,18 +236,31 @@ export function useMintInvoice() {
 
     try {
       appendMintLog("info", "checking chain for mined receipt")
-      const onChainReceipt = await publicClient.getTransactionReceipt({
-        hash: hash as `0x${string}`,
-      })
-
-      if (!onChainReceipt) {
-        appendMintLog("warning", "transaction not mined yet")
-        return false
+      // Retry up to 5 times with 4s gaps — different RPC nodes may index at
+      // different times, so a single "not found" is not conclusive.
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+          const onChainReceipt = await publicClient.getTransactionReceipt({
+            hash: hash as `0x${string}`,
+          })
+          if (onChainReceipt) {
+            setForcedReceipt(onChainReceipt)
+            appendMintLog("success", "receipt found on-chain, settling UI")
+            return true
+          }
+        } catch (err) {
+          const isNotFound = err instanceof Error && err.message.includes("could not be found")
+          if (!isNotFound) {
+            throw err
+          }
+        }
+        if (attempt < 5) {
+          appendMintLog("info", `tx not indexed yet, retrying (${attempt}/5)...`)
+          await new Promise(r => setTimeout(r, 4_000))
+        }
       }
-
-      setForcedReceipt(onChainReceipt)
-      appendMintLog("success", "receipt found on-chain, settling UI")
-      return true
+      appendMintLog("warning", "transaction not mined yet — check explorer or try again")
+      return false
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       appendMintLog("warning", `chain check failed: ${message}`)
@@ -288,7 +302,7 @@ export function useMintInvoice() {
 
     const timeoutId = setTimeout(() => {
       setConfirmationTimedOut(true)
-    }, 60_000)
+    }, 3 * 60_000) // 3 min — Mantle Sepolia can be slow
 
     return () => clearTimeout(timeoutId)
   }, [confirmationStartedAt, isConfirming, isSuccess])

@@ -536,7 +536,15 @@ function MintInvoiceContent() {
 
             {hash && (
               <div className="mt-4 text-[11px] text-[#666666] break-all">
-                tx: {hash}
+                tx: {hash}{" "}
+                <a
+                  href={`https://explorer.sepolia.mantle.xyz/tx/${hash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#10b981] hover:underline ml-1"
+                >
+                  view on explorer ↗
+                </a>
               </div>
             )}
           </div>
