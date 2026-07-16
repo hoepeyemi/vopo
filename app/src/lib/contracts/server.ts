@@ -36,6 +36,13 @@ export const publicClient = createPublicClient({
 
 const addresses = getContractAddresses(chainId)
 
+// Log resolved addresses at startup so docker logs shows which contracts are in use
+console.log("[contracts/server] chainId:", chainId)
+console.log("[contracts/server] invoiceNFT:", addresses.invoiceNFT)
+console.log("[contracts/server] yieldVault:", addresses.yieldVault)
+console.log("[contracts/server] agentRouter:", addresses.agentRouter)
+console.log("[contracts/server] RPC URLs:", getMantleSepoliaRpcUrls())
+
 // Invoice NFT reads
 export async function getInvoice(tokenId: bigint): Promise<Invoice | null> {
   try {
@@ -46,7 +53,8 @@ export async function getInvoice(tokenId: bigint): Promise<Invoice | null> {
       args: [tokenId],
     })
     return result as Invoice
-  } catch {
+  } catch (err) {
+    console.error("[contracts/server] getInvoice failed for tokenId", tokenId.toString(), err)
     return null
   }
 }
@@ -71,8 +79,11 @@ export async function getActiveInvoices(): Promise<bigint[]> {
       abi: InvoiceNFTABI,
       functionName: "getActiveInvoices",
     })
-    return result as bigint[]
-  } catch {
+    const ids = result as bigint[]
+    console.log("[contracts/server] getActiveInvoices →", ids.length, "ids:", ids.map(String))
+    return ids
+  } catch (err) {
+    console.error("[contracts/server] getActiveInvoices failed:", err)
     return []
   }
 }
@@ -115,7 +126,8 @@ export async function getDeposit(tokenId: bigint): Promise<Deposit | null> {
       args: [tokenId],
     })
     return result as Deposit
-  } catch {
+  } catch (err) {
+    console.error("[contracts/server] getDeposit failed for tokenId", tokenId.toString(), err)
     return null
   }
 }
@@ -129,7 +141,8 @@ export async function getAccruedYield(tokenId: bigint): Promise<bigint> {
       args: [tokenId],
     })
     return result as bigint
-  } catch {
+  } catch (err) {
+    console.error("[contracts/server] getAccruedYield failed for tokenId", tokenId.toString(), err)
     return BigInt(0)
   }
 }

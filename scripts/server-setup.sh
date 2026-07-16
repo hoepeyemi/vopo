@@ -102,7 +102,7 @@ WS_PORT=8080
 ANTHROPIC_API_KEY=
 
 # Wallet private key for on-chain transactions (no 0x prefix)
-PRIVATE_KEY=
+AGENT_PRIVATE_KEY=
 
 # Mantle Sepolia RPC
 RPC_URL=https://rpc.sepolia.mantle.xyz
@@ -138,7 +138,7 @@ echo "Your server IP: $SERVER_IP"
 echo ""
 echo "REQUIRED — edit these two files before your first deploy:"
 echo "  $APP_DIR/.env.app    ← fill in YOUR_SERVER_IP, WalletConnect ID, etc."
-echo "  $APP_DIR/.env.agent  ← fill in ANTHROPIC_API_KEY, PRIVATE_KEY"
+echo "  $APP_DIR/.env.agent  ← fill in ANTHROPIC_API_KEY, AGENT_PRIVATE_KEY"
 echo ""
 echo "REQUIRED — add these secrets to GitHub (Settings → Secrets → Actions):"
 echo "  DOCKER_USERNAME   → your Docker Hub username"

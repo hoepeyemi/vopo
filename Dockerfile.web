@@ -21,13 +21,20 @@ COPY . .
 WORKDIR /repo/app
 
 # ── Build-time env vars ───────────────────────────────────────────────────────
-# RPC URLs are public endpoints — baked in directly (no placeholder needed).
+# Network & RPC — public endpoints, baked in directly.
 ENV NEXT_PUBLIC_NETWORK_MODE=testnet
 ENV NEXT_PUBLIC_CHAIN_ID=5003
 ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC=https://rpc.sepolia.mantle.xyz
 ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_SELECTED=
 ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_1=https://mantle-sepolia.drpc.org
 ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_2=https://5003.rpc.thirdweb.com/
+
+# Contract addresses — public on-chain addresses, baked in directly so both
+# the client-side wagmi hooks and server-side API routes use the same contracts.
+ENV NEXT_PUBLIC_INVOICE_NFT_ADDRESS=0x76799a06A64f0b1C24Dd688348c6c2D2B215b173
+ENV NEXT_PUBLIC_YIELD_VAULT_ADDRESS=0xEfcae7a8c221956D1B3aff5bCDB0267e4aD6646A
+ENV NEXT_PUBLIC_AGENT_ROUTER_ADDRESS=0x38cf9B34d8Ca1d041FfB876Bf73f8DE2Cb119E01
+ENV NEXT_PUBLIC_PRIVACY_REGISTRY_ADDRESS=0x1941dF807C71A5261468de9dBDA9ceF626e635d3
 
 # Server-specific vars use placeholders — docker-entrypoint.sh replaces them
 # at container startup from .env.app so no secrets are needed in CI.
