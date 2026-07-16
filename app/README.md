@@ -13,7 +13,7 @@ Next.js frontend for vopo, deployed on Mantle Sepolia.
 ## Production deployment
 
 - Live: [https://vopo.eduworld.world](https://vopo.eduworld.world)
-- Health endpoint: `/health`
+- Health endpoint: [https://agent.eduworld.world/health](https://agent.eduworld.world/health)
 
 The app is deployed as a Docker container via GitHub Actions CI/CD. See [DEPLOY.md](../DEPLOY.md) for the full setup.
 
