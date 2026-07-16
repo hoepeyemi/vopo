@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useChainId, usePublicClient } from "wagmi"
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount, useChainId, usePublicClient, useSwitchChain } from "wagmi"
 import { InvoiceNFTABI, type Invoice, InvoiceStatus } from "@/lib/contracts/abis"
 import { getInvoiceNFTAddress } from "@/lib/contracts/addresses"
 import { keccak256, encodePacked, toHex, decodeEventLog, createPublicClient, http } from "viem"
@@ -133,6 +133,7 @@ export function useMintInvoice() {
   const { address } = useAccount()
   const contractAddress = getInvoiceNFTAddress(chainId)
   const publicClient = usePublicClient()
+  const { switchChainAsync } = useSwitchChain()
   const [confirmationTimedOut, setConfirmationTimedOut] = useState(false)
   const [confirmationStartedAt, setConfirmationStartedAt] = useState<number | null>(null)
   const [mintLogs, setMintLogs] = useState<MintLogEntry[]>([])
@@ -145,7 +146,7 @@ export function useMintInvoice() {
   const lastHashRef = useRef<string | null>(null)
   const lastForceCheckHashRef = useRef<string | null>(null)
 
-  const { writeContract, data: hash, isPending, error } = useWriteContract()
+  const { writeContractAsync, writeContract, data: hash, isPending, error } = useWriteContract()
 
   const { isLoading: isConfirming, isSuccess, data: receipt } = useWaitForTransactionReceipt({
     hash,
@@ -375,36 +376,30 @@ export function useMintInvoice() {
         throw new Error("Wallet address unavailable")
       }
 
-      // Fetch current gas price and enforce a minimum floor.
-      // On Mantle Sepolia, wallets often suggest 0 or sub-minimum gas,
-      // which causes txs to sit in the mempool indefinitely.
-      // Mantle Sepolia minimum is 0.001 gwei = 1_000_000 wei.
-      const GAS_FLOOR = 1_000_000n // 0.001 gwei
-      let gasPrice: bigint
-      try {
-        const networkGasPrice = await publicClient?.getGasPrice()
-        gasPrice = networkGasPrice != null && networkGasPrice > GAS_FLOOR
-          ? networkGasPrice
-          : GAS_FLOOR
-      } catch {
-        gasPrice = GAS_FLOOR
+      // Ensure wallet is on the correct chain (Mantle Sepolia = 5003).
+      // This prevents txs being silently submitted to the wrong network when
+      // MetaMask has drifted to a different chain since the page loaded.
+      const MANTLE_SEPOLIA_CHAIN_ID = 5003
+      if (chainId !== MANTLE_SEPOLIA_CHAIN_ID) {
+        appendMintLog("info", `switching to Mantle Sepolia (currently on chain ${chainId})`)
+        try {
+          await switchChainAsync({ chainId: MANTLE_SEPOLIA_CHAIN_ID })
+        } catch {
+          throw new Error("Please switch your wallet to Mantle Sepolia and try again")
+        }
       }
-      appendMintLog("info", `gas price: ${gasPrice} wei`)
 
-      const simulation = await publicClient?.simulateContract({
+      // Use writeContractAsync directly — let the wallet handle gas estimation.
+      // Previously we used simulateContract → writeContract which injected a
+      // legacy type-0 gasPrice, causing txs to get stuck on production HTTPS
+      // (MetaMask handles EIP-1559 gas differently on localhost vs HTTPS).
+      await writeContractAsync({
         address: contractAddress,
         abi: InvoiceNFTABI,
         functionName: "mint",
         args: [dataCommitment, amountCommitment, dueDateUnix],
-        account: address,
-        gasPrice,
+        chainId: MANTLE_SEPOLIA_CHAIN_ID,
       })
-
-      if (!simulation) {
-        throw new Error("Unable to simulate mint transaction")
-      }
-
-      await writeContract(simulation.request)
       appendMintLog("info", "transaction broadcast")
     } catch (error) {
       const message = error instanceof Error ? error.message : "Mint simulation failed"
