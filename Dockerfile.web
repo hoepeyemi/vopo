@@ -20,15 +20,17 @@ COPY . .
 
 WORKDIR /repo/app
 
-# All NEXT_PUBLIC_* vars are set to unique placeholder strings at build time.
-# docker-entrypoint.sh replaces them with real values from .env.app on the
-# server at container startup — no NEXT_PUBLIC values need to be in CI secrets.
+# ── Build-time env vars ───────────────────────────────────────────────────────
+# RPC URLs are public endpoints — baked in directly (no placeholder needed).
 ENV NEXT_PUBLIC_NETWORK_MODE=testnet
 ENV NEXT_PUBLIC_CHAIN_ID=5003
-ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC=__VOPO_MANTLE_RPC__
-ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_SELECTED=__VOPO_MANTLE_RPC_SEL__
-ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_1=__VOPO_MANTLE_RPC_FB1__
-ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_2=__VOPO_MANTLE_RPC_FB2__
+ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC=https://rpc.sepolia.mantle.xyz
+ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_SELECTED=
+ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_1=https://mantle-sepolia.drpc.org
+ENV NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_2=https://5003.rpc.thirdweb.com/
+
+# Server-specific vars use placeholders — docker-entrypoint.sh replaces them
+# at container startup from .env.app so no secrets are needed in CI.
 ENV NEXT_PUBLIC_AGENT_WS_URL=__VOPO_AGENT_WS_URL__
 ENV NEXT_PUBLIC_APP_URL=__VOPO_APP_URL__
 ENV NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=__VOPO_WC_PROJECT_ID__
@@ -53,7 +55,7 @@ RUN groupadd --system nodejs && useradd --system --gid nodejs nextjs
 # Copy the full standalone tree — server.js lives at standalone/app/server.js
 # and references ../node_modules (standalone/node_modules) at runtime.
 COPY --from=base --chown=nextjs:nodejs /repo/app/.next/standalone/        ./standalone/
-# Static client assets must be inside the app subdirectory
+# Static client assets must sit inside the app subdirectory
 COPY --from=base --chown=nextjs:nodejs /repo/app/.next/static/            ./standalone/app/.next/static/
 COPY --from=base --chown=nextjs:nodejs /repo/app/public/                  ./standalone/app/public/
 COPY --from=base --chown=nextjs:nodejs /repo/app/docker-entrypoint.sh     ./docker-entrypoint.sh

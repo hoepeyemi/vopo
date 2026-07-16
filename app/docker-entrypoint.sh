@@ -1,25 +1,33 @@
 #!/bin/sh
-# Replaces build-time placeholder strings in the Next.js bundle with the actual
-# runtime values from the container's env (sourced from .env.app on the server).
-# This lets all NEXT_PUBLIC_* vars live solely on the server — no CI secrets.
+# Replaces build-time placeholder strings in the Next.js JS bundle with the
+# actual values from the container's env (sourced from .env.app on the server).
+# Only the three server-specific vars need this — RPC URLs are baked in directly.
 set -e
 
 CHUNK_DIR="/srv/standalone/app/.next/static/chunks"
 
+if [ ! -d "$CHUNK_DIR" ]; then
+  echo "[entrypoint] ERROR: chunk directory not found: $CHUNK_DIR"
+  ls /srv/standalone/app/.next/static/ 2>/dev/null || echo "static dir missing"
+  exit 1
+fi
+
 replace() {
   local placeholder="$1"
   local value="$2"
-  if [ -n "$value" ]; then
-    find "$CHUNK_DIR" -name "*.js" -exec sed -i "s|${placeholder}|${value}|g" {} +
+  local label="$3"
+  if [ -z "$value" ]; then
+    echo "[entrypoint] WARN: $label is empty — placeholder $placeholder left in bundle"
+    return
   fi
+  count=$(find "$CHUNK_DIR" -name "*.js" -exec grep -l "$placeholder" {} + 2>/dev/null | wc -l)
+  find "$CHUNK_DIR" -name "*.js" -exec sed -i "s|${placeholder}|${value}|g" {} +
+  echo "[entrypoint] replaced $placeholder → $value ($count file(s))"
 }
 
-replace "__VOPO_MANTLE_RPC__"      "${NEXT_PUBLIC_MANTLE_SEPOLIA_RPC}"
-replace "__VOPO_MANTLE_RPC_SEL__"  "${NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_SELECTED}"
-replace "__VOPO_MANTLE_RPC_FB1__"  "${NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_1}"
-replace "__VOPO_MANTLE_RPC_FB2__"  "${NEXT_PUBLIC_MANTLE_SEPOLIA_RPC_FALLBACK_2}"
-replace "__VOPO_AGENT_WS_URL__"    "${NEXT_PUBLIC_AGENT_WS_URL}"
-replace "__VOPO_APP_URL__"         "${NEXT_PUBLIC_APP_URL}"
-replace "__VOPO_WC_PROJECT_ID__"   "${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID}"
+replace "__VOPO_AGENT_WS_URL__"  "${NEXT_PUBLIC_AGENT_WS_URL}"           "NEXT_PUBLIC_AGENT_WS_URL"
+replace "__VOPO_APP_URL__"        "${NEXT_PUBLIC_APP_URL}"                "NEXT_PUBLIC_APP_URL"
+replace "__VOPO_WC_PROJECT_ID__"  "${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID}" "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID"
 
+echo "[entrypoint] starting Next.js server..."
 exec node /srv/standalone/app/server.js
