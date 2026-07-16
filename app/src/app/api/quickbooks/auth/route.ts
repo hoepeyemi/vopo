@@ -14,11 +14,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const state = crypto.randomUUID()
-    // Derive the redirect URI from the actual request origin so it always
-    // matches the host the app is running on (local, staging, or production).
-    // The env var is ignored — register <origin>/api/quickbooks/callback in
-    // the Intuit Developer Portal instead.
-    const redirectUri = `${origin}/api/quickbooks/callback`
+    // Use QUICKBOOKS_REDIRECT_URI env var when explicitly set (required for
+    // production servers where the origin is a raw IP — Intuit rejects IPs).
+    // Falls back to deriving from request origin for local dev.
+    const redirectUri =
+      process.env.QUICKBOOKS_REDIRECT_URI || `${appUrl}/api/quickbooks/callback`
     const authUrl = getAuthorizationUrl(state, redirectUri)
 
     const response = NextResponse.redirect(authUrl)
