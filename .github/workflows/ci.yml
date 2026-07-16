@@ -140,12 +140,14 @@ jobs:
             echo "Deploying agent..."
             docker stop vopo-agent 2>/dev/null || true
             docker rm   vopo-agent 2>/dev/null || true
+            mkdir -p "$HOME/vopo/agent-data"
             docker run -d \
               --name vopo-agent \
               --restart unless-stopped \
               --network vopo-net \
               -p 8080:8080 \
               --env-file "$AGENT_ENV" \
+              -v "$HOME/vopo/agent-data:/app/agent/data" \
               "$AGENT_IMAGE"
 
             # Wait for agent to become healthy (max 2 min)
