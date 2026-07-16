@@ -53,13 +53,17 @@ export interface QuickBooksInvoice {
   }>
 }
 
-// Generate OAuth authorization URL
-export function getAuthorizationUrl(state: string): string {
+// Generate OAuth authorization URL.
+// redirectUri is derived from the request origin at call time so it always
+// matches the host the app is actually running on — no env var required.
+export function getAuthorizationUrl(state: string, redirectUri: string): string {
   const clientId = process.env.QUICKBOOKS_CLIENT_ID
-  const redirectUri = process.env.QUICKBOOKS_REDIRECT_URI
 
-  if (!clientId || !redirectUri) {
-    throw new Error("QuickBooks OAuth configuration missing")
+  if (!clientId) {
+    throw new Error("QUICKBOOKS_CLIENT_ID is not set")
+  }
+  if (!redirectUri) {
+    throw new Error("redirectUri must be provided")
   }
 
   const params = new URLSearchParams({
@@ -73,17 +77,21 @@ export function getAuthorizationUrl(state: string): string {
   return `${QUICKBOOKS_AUTHORIZE_URL}?${params.toString()}`
 }
 
-// Exchange authorization code for tokens
+// Exchange authorization code for tokens.
+// redirectUri must match exactly what was sent in the authorization request.
 export async function exchangeCodeForTokens(
   code: string,
-  realmId: string
+  realmId: string,
+  redirectUri: string,
 ): Promise<QuickBooksTokens> {
   const clientId = process.env.QUICKBOOKS_CLIENT_ID
   const clientSecret = process.env.QUICKBOOKS_CLIENT_SECRET
-  const redirectUri = process.env.QUICKBOOKS_REDIRECT_URI
 
-  if (!clientId || !clientSecret || !redirectUri) {
-    throw new Error("QuickBooks OAuth configuration missing")
+  if (!clientId || !clientSecret) {
+    throw new Error("QUICKBOOKS_CLIENT_ID or QUICKBOOKS_CLIENT_SECRET is not set")
+  }
+  if (!redirectUri) {
+    throw new Error("redirectUri must be provided")
   }
 
   const auth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64")

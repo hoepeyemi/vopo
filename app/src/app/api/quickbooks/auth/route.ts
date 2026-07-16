@@ -5,7 +5,8 @@ import { isQuickBooksConfigured } from "@/lib/quickbooks-demo"
 export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin
+  const origin = new URL(request.url).origin
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin
 
   if (!isQuickBooksConfigured()) {
     return NextResponse.redirect(new URL("/dashboard/mint?quickbooks=demo", appUrl))
@@ -13,18 +14,28 @@ export async function GET(request: NextRequest) {
 
   try {
     const state = crypto.randomUUID()
-    const authUrl = getAuthorizationUrl(state)
+    // Derive the redirect URI from the actual request origin so it always
+    // matches the host the app is running on (local, staging, or production).
+    // The env var is ignored — register <origin>/api/quickbooks/callback in
+    // the Intuit Developer Portal instead.
+    const redirectUri = `${origin}/api/quickbooks/callback`
+    const authUrl = getAuthorizationUrl(state, redirectUri)
+
     const response = NextResponse.redirect(authUrl)
-    response.cookies.set("quickbooks_oauth_state", state, {
+    const cookieOpts = {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: "lax" as const,
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 10 * 60,
-    })
+    }
+    response.cookies.set("quickbooks_oauth_state", state, cookieOpts)
+    // Store the redirect URI so the callback uses exactly the same value
+    // when exchanging the authorization code for tokens.
+    response.cookies.set("quickbooks_redirect_uri", redirectUri, cookieOpts)
     return response
-  } catch {
+  } catch (err) {
+    console.error("[QuickBooks auth] failed to build authorization URL:", err)
     return NextResponse.redirect(new URL("/dashboard/mint?error=quickbooks_auth_failed", appUrl))
   }
 }
-

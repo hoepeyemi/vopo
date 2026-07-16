@@ -69,8 +69,7 @@ export function getDemoQuickBooksInvoices(): QuickBooksInvoice[] {
 export function isQuickBooksConfigured(): boolean {
   return Boolean(
     process.env.QUICKBOOKS_CLIENT_ID &&
-      process.env.QUICKBOOKS_CLIENT_SECRET &&
-      process.env.QUICKBOOKS_REDIRECT_URI
+      process.env.QUICKBOOKS_CLIENT_SECRET
   )
 }
 

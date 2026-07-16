@@ -6,18 +6,22 @@ import { storeQuickBooksTokens } from "@/lib/quickbooks-session"
 export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin
+  const origin = new URL(request.url).origin
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin
   const { searchParams } = new URL(request.url)
   const code = searchParams.get("code")
   const realmId = searchParams.get("realmId") || searchParams.get("realm_id")
   const state = searchParams.get("state")
   const stateCookie = request.cookies.get("quickbooks_oauth_state")?.value
+  // Must use the same redirect URI that was sent in the authorization request
+  const redirectUri =
+    request.cookies.get("quickbooks_redirect_uri")?.value ||
+    `${origin}/api/quickbooks/callback`
 
   if (!isQuickBooksConfigured()) {
     return NextResponse.redirect(new URL("/dashboard/mint?quickbooks=demo", appUrl))
   }
 
-  // Intuit sends ?error=... when the user denies or something goes wrong on their side
   const intuitError = searchParams.get("error")
   if (intuitError) {
     const desc = searchParams.get("error_description") ?? "(no description)"
@@ -36,15 +40,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const tokens = await exchangeCodeForTokens(code, realmId)
+    const tokens = await exchangeCodeForTokens(code, realmId, redirectUri)
     storeQuickBooksTokens(tokens)
 
     const response = NextResponse.redirect(new URL("/dashboard/mint?quickbooks=success", appUrl))
     response.cookies.delete("quickbooks_oauth_state")
+    response.cookies.delete("quickbooks_redirect_uri")
     return response
   } catch (err) {
     console.error("[QuickBooks callback] token exchange failed:", err)
     return NextResponse.redirect(new URL("/dashboard/mint?error=quickbooks_auth_failed", appUrl))
   }
 }
-
