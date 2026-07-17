@@ -170,6 +170,7 @@ The combination of `qwen-max` for reasoning and `qwen-turbo` for maintenance tas
 
 ## What's Next
 
+
 The memory layer is the part we're most excited to keep developing. Right now it accumulates wisdom about invoice patterns and market regimes. The next step is cross-invoice debtor profiling — building a semantic model of payment behavior per buyer identity that persists across every invoice they're involved in.
 
 The broader vision is an agent that, after seeing a thousand invoices across a year, genuinely understands industry-level payment patterns better than any individual treasury manager could. That requires persistent, evolving memory — and building that memory system well is why we chose Track 1.
