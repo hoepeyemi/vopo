@@ -119,7 +119,7 @@ export const config = createConfig({
 });
 
 // WebSocket URL for agent
-export const AGENT_WS_URL = process.env.NEXT_PUBLIC_AGENT_WS_URL || 'ws://localhost:8080';
+export const AGENT_WS_URL = process.env.NEXT_PUBLIC_AGENT_WS_URL || 'wss://agent.eduworld.world';
 
 // Get all supported chain IDs based on network mode
 export const SUPPORTED_CHAINS = isTestnet
